@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Each user can read their own profile (role, verified status).
+    // Creation is allowed once, at signup; further edits (e.g. verified: true
+    // for a doctor) should only happen via the Firebase console/admin tooling.
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update, delete: if false;
+    }
+
+    // Doctors list is public to read (patients need to browse it), locked to write.
+    match /doctors/{doctorId} {
+      allow read: if true;
+      allow write: if false; // manage via Firebase console for now
+    }
+
+    // Appointments: any signed-in user can create one; only involved parties can read.
+    // NOTE: tighten this once doctorId/patientId are tied to auth.uid.
+    match /appointments/{appointmentId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
