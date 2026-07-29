@@ -44,12 +44,24 @@ capacitor.config.json       points Capacitor at the Next.js export output
 3. In Firestore, manually add a couple of documents to a `doctors`
    collection to test with, e.g. `{ name: "Dr. Amara Obi", specialty:
    "General practice" }`.
-4. Install dependencies and run:
+4. Seed open time slots for those doctors:
+   ```
+   npm install
+   ```
+   Then in the Firebase console: Project settings → Service accounts →
+   Generate new private key. Save the downloaded file as
+   `scripts/serviceAccountKey.json` (already gitignored — never commit it).
+   Then run:
+   ```
+   node scripts/seedSlots.js
+   ```
+   This creates 6 open slots a day, 5 weekdays out, for every doctor.
+5. Install dependencies and run:
    ```
    npm install
    npm run dev
    ```
-5. Deploy `firestore.rules` via the Firebase console or CLI before you go
+6. Deploy `firestore.rules` via the Firebase console or CLI before you go
    any further than local testing — the default rules lock everything down.
 
 ## Turning this into a mobile app
@@ -64,13 +76,14 @@ npx cap open android      # or: npx cap open ios
 
 ## Suggested build order from here
 
-1. **Auth + role routing** (this scaffold has the shape — wire up saving
-   `role` to a `users/{uid}` Firestore doc on signup, and protect the
-   dashboard routes so a patient can't load `/doctor/dashboard`).
+1. **Auth + role routing** — done. Signup saves `role` to `users/{uid}`,
+   both dashboards redirect based on it, unverified doctors see a
+   pending-approval screen.
 2. **Real doctor data** — a simple admin script or Firebase console entries
    to replace the manual seeding.
-3. **Real slot picker** — the booking button currently books "now"; swap in
-   a date/time picker and a `doctors/{id}/availability` sub-collection.
+3. **Real slot picker** — done. `scripts/seedSlots.js` generates open
+   slots per doctor; the patient dashboard shows them and booking flips a
+   slot to `booked: true` instead of booking "now".
 4. **Video call** — add `@daily-co/daily-js` to the join-call button; room
    URLs can be hardcoded per-doctor at first, then generated dynamically via
    a small serverless function once that's needed.
