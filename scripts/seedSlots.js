@@ -1,6 +1,10 @@
 // One-off script to seed test slots for every doctor in Firestore.
 // Run with: node scripts/seedSlots.js
 //
+// Safe to re-run at any time (e.g. after adding a new doctor) — it checks
+// each doctor's existing slots first and only adds times that aren't
+// already there, so it won't duplicate slots or touch ones already booked.
+//
 // Requires a service account key (Firebase console > Project settings >
 // Service accounts > Generate new private key). Save it as
 // scripts/serviceAccountKey.json — this file should NEVER be committed,
@@ -30,7 +34,18 @@ async function seedSlots() {
 
   for (const doctorDoc of doctorsSnap.docs) {
     const slotsRef = doctorDoc.ref.collection("slots");
+
+    // Check what this doctor already has before adding anything — this is
+    // what makes the script safe to re-run (e.g. after adding a new
+    // doctor) without duplicating existing doctors' slots, and without
+    // touching any slot that's already been booked.
+    const existingSnap = await slotsRef.get();
+    const existingTimes = new Set(
+      existingSnap.docs.map((d) => d.data().startTime.toMillis())
+    );
+
     let created = 0;
+    let skipped = 0;
 
     for (let dayOffset = 1; dayOffset <= DAYS_AHEAD; dayOffset++) {
       const date = new Date();
@@ -40,6 +55,12 @@ async function seedSlots() {
         const [hour, minute] = time.split(":").map(Number);
         const slotDate = new Date(date);
         slotDate.setHours(hour, minute, 0, 0);
+        const slotMillis = slotDate.getTime();
+
+        if (existingTimes.has(slotMillis)) {
+          skipped++;
+          continue;
+        }
 
         await slotsRef.add({
           startTime: admin.firestore.Timestamp.fromDate(slotDate),
@@ -49,7 +70,8 @@ async function seedSlots() {
       }
     }
 
-    console.log(`Seeded ${created} slots for ${doctorDoc.data().name || doctorDoc.id}`);
+    const label = doctorDoc.data().name || doctorDoc.id;
+    console.log(`${label}: created ${created}, skipped ${skipped} (already existed)`);
   }
 }
 
