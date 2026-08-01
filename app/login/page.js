@@ -29,6 +29,7 @@ export default function LoginPage() {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         await setDoc(doc(db, "users", cred.user.uid), {
           role,
+          email,
           // doctors start unverified until an admin approves them (see README)
           verified: role === "patient" ? true : false,
           createdAt: serverTimestamp(),

@@ -41,9 +41,34 @@ capacitor.config.json       points Capacitor at the Next.js export output
    **Authentication → Email/Password** and **Firestore Database**.
 2. Copy `.env.local.example` to `.env.local` and fill in your Firebase
    config values (Project settings → General → Your apps → Web app).
-3. In Firestore, manually add a couple of documents to a `doctors`
-   collection to test with, e.g. `{ name: "Dr. Amara Obi", specialty:
-   "General practice" }`.
+3. In Firestore, add doctors for testing. **Important:** a doctor's document
+   ID must be their own Firebase Auth UID, not an auto-generated one — this
+   is what lets the doctor dashboard know which appointments are theirs.
+   To add one properly:
+   - Have the doctor sign up through `/login` (role: doctor) first — this
+     creates their Auth account.
+   - In the Firebase console → Authentication tab, copy their UID.
+   - In Firestore → `doctors` collection → **Start collection**, and for
+     Document ID, paste that UID (not Auto-ID). Add fields: `name`,
+     `specialty`, `verified: true`.
+   - Also set `verified: true` on their `users/{uid}` document (this is
+     what unlocks their dashboard, separately from the `doctors` entry
+     above which is what patients browse).
+   If you added test doctors before this convention (e.g. with Auto-ID),
+   their bookings won't show correctly on any real doctor login — delete
+   and recreate them this way once you have real doctor accounts to test with.
+4. For video calling: create a free account at daily.co, and for each test
+   doctor, create a room in the Daily.co dashboard (e.g. named `dr-amara`).
+   Add the room's URL to that doctor's Firestore document as a `roomUrl`
+   field, e.g. `https://your-domain.daily.co/dr-amara`. Every appointment
+   with that doctor currently joins the same room — see the note at the
+   top of `app/call/page.js` for why, and what the real version looks like.
+5. To use the admin panel at `/admin`, add yourself as an admin: in the
+   Firebase console → Firestore → **Start collection** → Collection ID
+   `admins` → Document ID: your own Auth UID (from the Authentication tab)
+   → no fields needed, just create the document. Admin access is checked
+   by whether this document exists, separate from the "role" field on
+   your `users` doc.
 4. Seed open time slots for those doctors:
    ```
    npm install
@@ -84,11 +109,26 @@ npx cap open android      # or: npx cap open ios
 3. **Real slot picker** — done. `scripts/seedSlots.js` generates open
    slots per doctor; the patient dashboard shows them and booking flips a
    slot to `booked: true` instead of booking "now".
-4. **Video call** — add `@daily-co/daily-js` to the join-call button; room
-   URLs can be hardcoded per-doctor at first, then generated dynamically via
-   a small serverless function once that's needed.
-5. **Visit notes** — a text field on the doctor's side, saved to the
-   appointment doc, visible on the patient's history view.
+4. **Video call** — done, for a first version. The join-call button (on
+   both patient and doctor sides) opens `/call?appointmentId=...`, which
+   loads the appointment, finds the doctor's `roomUrl`, and embeds the
+   Daily.co call frame. Rooms are hardcoded per doctor, not generated per
+   appointment — see the note in `app/call/page.js` for the upgrade path.
+5. **Visit notes** — done. Each appointment card on the doctor dashboard
+   has a notes textarea + save button, writing to a `notes` field on the
+   appointment doc. The patient's appointment card displays it once saved.
+   Security rules restrict this so only the assigned doctor can update an
+   appointment, and only the `notes` field — nothing else about the
+   booking can be changed this way.
+6. **Admin panel** — done. `/admin` lists doctor accounts with
+   `verified: false`, with an approve button that flips it. Access is
+   gated by an `admins` Firestore collection (see setup step 5 above) —
+   this is separate from the patient/doctor `role` field, since being an
+   admin isn't something anyone signs up for. Note: approving here only
+   unlocks the doctor's own dashboard — making them bookable by patients
+   still requires manually adding their matching `doctors` collection
+   entry (same uid as Document ID), which the admin panel doesn't
+   automate yet.
 
 Payments, e-prescriptions, and admin tooling are deliberately left out —
 add them once the core loop (book → call → notes) works end to end.

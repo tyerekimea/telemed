@@ -5,15 +5,15 @@ import { useRouter } from "next/navigation";
 import {
   collection,
   getDocs,
-  addDoc,
-  updateDoc,
   doc,
   serverTimestamp,
   query,
   where,
+  runTransaction,
 } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
 import { useAuth } from "../../../lib/useAuth";
+import { useIsAdmin } from "../../../lib/useIsAdmin";
 import DoctorCard from "../../../components/DoctorCard";
 
 // MVP note: doctors are read from a "doctors" collection you seed manually
@@ -22,6 +22,7 @@ import DoctorCard from "../../../components/DoctorCard";
 
 export default function PatientDashboard() {
   const { user, role, loading } = useAuth();
+  const isAdmin = useIsAdmin(user);
   const router = useRouter();
   const [doctors, setDoctors] = useState([]);
   const [openDoctorId, setOpenDoctorId] = useState(null);
@@ -29,6 +30,8 @@ export default function PatientDashboard() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsError, setSlotsError] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [bookingSlotId, setBookingSlotId] = useState(null);
+  const [bookingError, setBookingError] = useState("");
 
   useEffect(() => {
     if (loading) return;
@@ -77,23 +80,48 @@ export default function PatientDashboard() {
   }
 
   async function handleBookSlot(doctor, slot) {
-    // Flip the slot to booked, then create the appointment tied to it.
-    await updateDoc(doc(db, "doctors", doctor.id, "slots", slot.id), {
-      booked: true,
-    });
-    await addDoc(collection(db, "appointments"), {
-      doctorId: doctor.id,
-      doctorName: doctor.name,
-      patientId: user.uid,
-      slotId: slot.id,
-      startTime: slot.startTime,
-      status: "booked",
-      createdAt: serverTimestamp(),
-    });
-    setSlots((prev) => prev.filter((s) => s.id !== slot.id));
-    setConfirmation(
-      `Booked with ${doctor.name} for ${slot.startTime.toDate().toLocaleString()}.`
-    );
+    setConfirmation("");
+    setBookingError("");
+    setBookingSlotId(slot.id);
+    const slotRef = doc(db, "doctors", doctor.id, "slots", slot.id);
+    // Generate the appointment's ID up front so it can be written inside
+    // the same transaction as the slot update.
+    const appointmentRef = doc(collection(db, "appointments"));
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const slotSnap = await transaction.get(slotRef);
+        if (!slotSnap.exists() || slotSnap.data().booked) {
+          // Someone else booked this exact slot between us loading the
+          // list and clicking it — bail out before writing anything.
+          throw new Error("SLOT_TAKEN");
+        }
+        transaction.update(slotRef, { booked: true });
+        transaction.set(appointmentRef, {
+          doctorId: doctor.id,
+          doctorName: doctor.name,
+          patientId: user.uid,
+          slotId: slot.id,
+          startTime: slot.startTime,
+          status: "booked",
+          createdAt: serverTimestamp(),
+        });
+      });
+      setSlots((prev) => prev.filter((s) => s.id !== slot.id));
+      setConfirmation(
+        `Booked with ${doctor.name} for ${slot.startTime.toDate().toLocaleString()}.`
+      );
+    } catch (err) {
+      console.error(err);
+      if (err.message === "SLOT_TAKEN") {
+        setBookingError("That time was just booked by someone else — pick another.");
+        setSlots((prev) => prev.filter((s) => s.id !== slot.id));
+      } else {
+        setBookingError("Couldn't book that slot. Please try again.");
+      }
+    } finally {
+      setBookingSlotId(null);
+    }
   }
 
   if (loading || !user || (role && role !== "patient")) {
@@ -104,7 +132,10 @@ export default function PatientDashboard() {
     <main style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1>Find a doctor</h1>
-        <button onClick={() => router.push("/patient/appointments")}>My appointments</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          {isAdmin && <button onClick={() => router.push("/admin")}>Admin</button>}
+          <button onClick={() => router.push("/patient/appointments")}>My appointments</button>
+        </div>
       </div>
       {confirmation && <p style={{ color: "green" }}>{confirmation}</p>}
       {doctors.length === 0 && <p>No doctors available yet — seed the "doctors" collection in Firestore.</p>}
@@ -115,6 +146,7 @@ export default function PatientDashboard() {
             <div style={{ margin: "-4px 0 16px", paddingLeft: 16 }}>
               {slotsLoading && <p>Loading times...</p>}
               {slotsError && <p style={{ color: "red" }}>{slotsError}</p>}
+              {bookingError && <p style={{ color: "red" }}>{bookingError}</p>}
               {!slotsLoading && !slotsError && slots.length === 0 && <p>No open slots right now.</p>}
               {!slotsLoading &&
                 !slotsError &&
@@ -122,13 +154,16 @@ export default function PatientDashboard() {
                   <button
                     key={slot.id}
                     onClick={() => handleBookSlot(doctor, slot)}
+                    disabled={bookingSlotId === slot.id}
                     style={{ marginRight: 8, marginBottom: 8 }}
                   >
-                    {slot.startTime.toDate().toLocaleString([], {
-                      weekday: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {bookingSlotId === slot.id
+                      ? "Booking..."
+                      : slot.startTime.toDate().toLocaleString([], {
+                          weekday: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                   </button>
                 ))}
             </div>
