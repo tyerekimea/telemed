@@ -23,12 +23,22 @@ import { useAuth } from "../../lib/useAuth";
 // Next.js requires any component calling useSearchParams() to sit inside a
 // <Suspense> boundary when the page is statically prerendered, or the build
 // fails — hence the split into an inner component wrapped below.
+//
+// Chat: Daily's prebuilt call UI includes an in-call chat panel by default —
+// nothing to build here, just make sure "Chat" is left enabled in the room's
+// settings in the Daily.co dashboard (it is by default).
+//
+// Voice vs video: both use the exact same Daily room and call frame — the
+// only difference is whether the camera starts on or off, controlled by
+// ?mode=voice in the URL. Either party can still toggle their own camera
+// during the call regardless of which button they joined from.
 
 function CallPageInner() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const appointmentId = searchParams.get("appointmentId");
+  const mode = searchParams.get("mode") === "voice" ? "voice" : "video";
   const callFrameRef = useRef(null);
   const containerRef = useRef(null);
   const [appointment, setAppointment] = useState(null);
@@ -71,7 +81,7 @@ function CallPageInner() {
         showLeaveButton: true,
         iframeStyle: { width: "100%", height: "500px", border: "0" },
       });
-      frame.join({ url: appointment.roomUrl });
+      frame.join({ url: appointment.roomUrl, startVideoOff: mode === "voice" });
       callFrameRef.current = frame;
     });
 
@@ -79,7 +89,7 @@ function CallPageInner() {
       cancelled = true;
       callFrameRef.current?.destroy();
     };
-  }, [appointment]);
+  }, [appointment, mode]);
 
   if (loading || !user) {
     return <main style={{ padding: 24 }}>Loading...</main>;
@@ -100,7 +110,7 @@ function CallPageInner() {
 
   return (
     <main style={{ padding: 24 }}>
-      <h1>Video call</h1>
+      <h1>{mode === "voice" ? "Voice call" : "Video call"}</h1>
       <div ref={containerRef} />
     </main>
   );

@@ -100,7 +100,30 @@ export default function DoctorDashboard() {
       {appointments.map((appt) => (
         <div key={appt.id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 12 }}>
           <p><strong>Status:</strong> {appt.status}</p>
-          <button onClick={() => router.push(`/call?appointmentId=${appt.id}`)}>Join video call</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => router.push(`/call?appointmentId=${appt.id}&mode=video`)}>
+              Video call
+            </button>
+            <button onClick={() => router.push(`/call?appointmentId=${appt.id}&mode=voice`)}>
+              Voice call
+            </button>
+          </div>
+          {appt.attachments?.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <p style={{ margin: "0 0 4px", fontSize: 14, color: "#666" }}>
+                Files from patient
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 20 }}>
+                {appt.attachments.map((file, i) => (
+                  <li key={i}>
+                    <a href={file.url} target="_blank" rel="noopener noreferrer">
+                      {file.name}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div style={{ marginTop: 12 }}>
             <label style={{ display: "block", marginBottom: 4, fontSize: 14, color: "#666" }}>
               Visit notes

@@ -15,8 +15,8 @@ Book a doctor, video-call them, get a visit summary. Built with Next.js
   and the app calls it over `fetch()`. Not needed for the very first version
   below, but you'll hit this wall as soon as video rooms need to be created
   dynamically instead of hardcoded.
-- **Firebase** — Auth and Firestore are used directly from the app (no
-  custom backend needed for basic reads/writes), which sidesteps the
+- **Firebase** — Auth, Firestore, and Storage are used directly from the app
+  (no custom backend needed for basic reads/writes), which sidesteps the
   static-export limitation above for everything except Daily.co room creation.
 
 ## Project structure
@@ -32,13 +32,19 @@ components/
 lib/
   firebase.js               Firebase init (reads from .env.local)
 firestore.rules             starter security rules
+storage.rules                security rules for patient file uploads
 capacitor.config.json       points Capacitor at the Next.js export output
 ```
 
 ## Setup
 
 1. Create a Firebase project at console.firebase.google.com, enable
-   **Authentication → Email/Password** and **Firestore Database**.
+   **Authentication → Email/Password**, **Firestore Database**, and
+   **Storage** (this last one is needed for patient file attachments —
+   click Storage in the sidebar → Get started, defaults are fine).
+   After enabling Storage, deploy `storage.rules` the same way as
+   `firestore.rules` — Firebase console → Storage → Rules tab → paste the
+   contents of `storage.rules` → Publish.
 2. Copy `.env.local.example` to `.env.local` and fill in your Firebase
    config values (Project settings → General → Your apps → Web app).
 3. In Firestore, add doctors for testing. **Important:** a doctor's document
@@ -59,6 +65,8 @@ capacitor.config.json       points Capacitor at the Next.js export output
    and recreate them this way once you have real doctor accounts to test with.
 4. For video calling: create a free account at daily.co, and for each test
    doctor, create a room in the Daily.co dashboard (e.g. named `dr-amara`).
+   Leave **Chat** enabled in the room's settings (on by default) — that's
+   what powers the in-call chat panel, no app code involved.
    Add the room's URL to that doctor's Firestore document as a `roomUrl`
    field, e.g. `https://your-domain.daily.co/dr-amara`. Every appointment
    with that doctor currently joins the same room — see the note at the
@@ -128,7 +136,40 @@ npx cap open android      # or: npx cap open ios
    unlocks the doctor's own dashboard — making them bookable by patients
    still requires manually adding their matching `doctors` collection
    entry (same uid as Document ID), which the admin panel doesn't
-   automate yet.
+   automate yet. An "Admin" button now appears in the header of both the
+   patient and doctor dashboards, but only for accounts whose uid exists
+   in the `admins` collection (via a new `lib/useIsAdmin.js` hook) — it's
+   simply not rendered for anyone else, though `/admin` itself was already
+   properly access-controlled by the Firestore rules regardless.
+7. **Booking race condition — fixed.** Booking used to be two separate
+   writes (mark slot booked, then create the appointment), so two patients
+   clicking the same slot at nearly the same moment could both succeed,
+   double-booking it. `handleBookSlot` in `app/patient/dashboard/page.js`
+   now uses a single Firestore transaction: it reads the slot, checks it's
+   still open, and writes the slot update and the new appointment
+   atomically. If someone else won the race, the patient sees "That time
+   was just booked by someone else" instead of a silent double-booking.
+8. **Chat, voice call, and file attachments — done.**
+   - **Chat** — no new code; Daily's prebuilt call UI includes an in-call
+     chat panel automatically, as long as it's left enabled on the room
+     (see setup step 4).
+   - **Voice call** — "Video call" and "Voice call" buttons now sit side
+     by side on both the patient and doctor appointment cards. Both join
+     the exact same Daily room; voice mode just starts with the camera
+     off (`startVideoOff: true`) via `?mode=voice` in the URL. Either
+     person can still turn their camera on mid-call regardless of which
+     button they used.
+   - **File attachments** — patients can attach a PNG, JPG, PDF, or Word
+     doc (10MB max) to an appointment, uploaded to Firebase Storage at
+     `appointments/{appointmentId}/{filename}` and recorded in an
+     `attachments` array on the appointment doc. The doctor's dashboard
+     lists them as clickable links under "Files from patient." Security:
+     `firestore.rules` lets only the booking patient update the
+     `attachments` field (mirrors how only the doctor can update `notes`);
+     `storage.rules` caps file size/type and requires being signed in —
+     see the comment in that file for why it can't check patientId/
+     doctorId directly the way Firestore rules can, and what the
+     tighter version would need (a Cloud Function).
 
 Payments, e-prescriptions, and admin tooling are deliberately left out —
 add them once the core loop (book → call → notes) works end to end.

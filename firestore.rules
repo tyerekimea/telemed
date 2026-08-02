@@ -53,11 +53,15 @@ service cloud.firestore {
       allow read: if request.auth != null
         && (resource.data.patientId == request.auth.uid
             || resource.data.doctorId == request.auth.uid);
-      // Only the assigned doctor can update, and only the notes field —
-      // status, patientId, doctorId, startTime etc. stay immutable here.
+      // Only the assigned doctor can update notes; only the booking
+      // patient can update attachments. Each is restricted to that one
+      // field — nobody can touch status, patientId, doctorId, startTime,
+      // or the other party's field this way.
       allow update: if request.auth != null
-        && resource.data.doctorId == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["notes"]);
+        && ((resource.data.doctorId == request.auth.uid
+             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["notes"]))
+            || (resource.data.patientId == request.auth.uid
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["attachments"])));
       allow delete: if false;
     }
   }
