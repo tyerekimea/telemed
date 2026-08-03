@@ -1,6 +1,1 @@
-{
-  "/admin/page": "app/admin/page.js",
-  "/patient/dashboard/page": "app/patient/dashboard/page.js",
-  "/login/page": "app/login/page.js",
-  "/doctor/dashboard/page": "app/doctor/dashboard/page.js"
-}
+{}
