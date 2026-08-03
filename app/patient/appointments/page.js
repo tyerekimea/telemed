@@ -6,6 +6,7 @@ import { collection, query, where, getDocs, doc, updateDoc, arrayUnion } from "f
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../../../lib/firebase";
 import { useAuth } from "../../../lib/useAuth";
+import { usePatientProfile } from "../../../lib/usePatientProfile";
 
 const ALLOWED_TYPES = [
   "image/png",
@@ -18,6 +19,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB, matches storage.rules
 
 export default function PatientAppointments() {
   const { user, role, loading } = useAuth();
+  const { profile, loadingProfile } = usePatientProfile(user);
   const router = useRouter();
   const [appointments, setAppointments] = useState([]);
   const [loadingAppts, setLoadingAppts] = useState(true);
@@ -33,6 +35,13 @@ export default function PatientAppointments() {
       router.push("/doctor/dashboard");
     }
   }, [user, role, loading, router]);
+
+  useEffect(() => {
+    if (loading || loadingProfile) return;
+    if (user && role === "patient" && profile && !profile.profileComplete) {
+      router.push("/patient/profile");
+    }
+  }, [user, role, profile, loading, loadingProfile, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -105,7 +114,7 @@ export default function PatientAppointments() {
     }
   }
 
-  if (loading || !user) {
+  if (loading || loadingProfile || !user || (profile && !profile.profileComplete)) {
     return <main style={{ padding: 24 }}>Loading...</main>;
   }
 

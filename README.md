@@ -26,7 +26,9 @@ app/
   page.js                  landing page
   login/page.js             signup/login (role: patient or doctor)
   patient/dashboard/page.js browse doctors, book a slot
-  doctor/dashboard/page.js  view booked appointments
+  patient/profile/page.js  required registration form (name, DOB, phone, gender)
+  doctor/dashboard/page.js  pending appointments — call buttons, patient files
+  doctor/dashboard/past/page.js  past appointments — visit notes only
 components/
   DoctorCard.js
 lib/
@@ -170,6 +172,26 @@ npx cap open android      # or: npx cap open ios
      see the comment in that file for why it can't check patientId/
      doctorId directly the way Firestore rules can, and what the
      tighter version would need (a Cloud Function).
+9. **Doctor dashboard split into Pending / Past — done.** `/doctor/dashboard`
+   now shows only appointments with `startTime` still upcoming — booking
+   details, Video/Voice call buttons, and the patient's file attachments.
+   `/doctor/dashboard/past` shows everything already elapsed, with just
+   the visit notes editor (no call buttons or attachments — they don't
+   apply once the appointment's over). The split is purely by comparing
+   `startTime` to the current time client-side; no new appointment status
+   field or Firestore rule changes were needed. A nav button on each page
+   switches to the other, alongside the existing Admin button.
+10. **Patient registration form — done.** New patients are marked
+    `profileComplete: false` at signup; `patient/dashboard` and
+    `patient/appointments` both redirect to `/patient/profile` until
+    they've filled in First name, Last name, D.O.B, Phone, and Gender.
+    The form is also revisitable anytime afterward to edit those details
+    (it's not locked after first submission). Booking now attaches the
+    patient's name to the appointment (`patientName`), so both doctor
+    dashboard pages show who each appointment is with, instead of no
+    identifying info at all. `firestore.rules` lets a patient update only
+    their own profile fields on their `users` doc — separate from, and
+    alongside, the existing admin-only `verified` permission.
 
 Payments, e-prescriptions, and admin tooling are deliberately left out —
 add them once the core loop (book → call → notes) works end to end.

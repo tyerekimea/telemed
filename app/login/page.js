@@ -27,13 +27,20 @@ export default function LoginPage() {
     try {
       if (mode === "signup") {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
-        await setDoc(doc(db, "users", cred.user.uid), {
+        const userDoc = {
           role,
           email,
           // doctors start unverified until an admin approves them (see README)
           verified: role === "patient" ? true : false,
           createdAt: serverTimestamp(),
-        });
+        };
+        if (role === "patient") {
+          // Patients fill in name/DOB/phone/gender on their first login —
+          // see app/patient/profile/page.js and the redirect in
+          // patient/dashboard and patient/appointments that enforces this.
+          userDoc.profileComplete = false;
+        }
+        await setDoc(doc(db, "users", cred.user.uid), userDoc);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }

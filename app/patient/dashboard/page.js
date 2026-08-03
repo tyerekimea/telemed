@@ -14,6 +14,7 @@ import {
 import { db } from "../../../lib/firebase";
 import { useAuth } from "../../../lib/useAuth";
 import { useIsAdmin } from "../../../lib/useIsAdmin";
+import { usePatientProfile } from "../../../lib/usePatientProfile";
 import DoctorCard from "../../../components/DoctorCard";
 
 // MVP note: doctors are read from a "doctors" collection you seed manually
@@ -23,6 +24,7 @@ import DoctorCard from "../../../components/DoctorCard";
 export default function PatientDashboard() {
   const { user, role, loading } = useAuth();
   const isAdmin = useIsAdmin(user);
+  const { profile, loadingProfile } = usePatientProfile(user);
   const router = useRouter();
   const [doctors, setDoctors] = useState([]);
   const [openDoctorId, setOpenDoctorId] = useState(null);
@@ -41,6 +43,14 @@ export default function PatientDashboard() {
       router.push("/doctor/dashboard");
     }
   }, [user, role, loading, router]);
+
+  // Booking requires a completed profile — see app/patient/profile/page.js.
+  useEffect(() => {
+    if (loading || loadingProfile) return;
+    if (user && role === "patient" && profile && !profile.profileComplete) {
+      router.push("/patient/profile");
+    }
+  }, [user, role, profile, loading, loadingProfile, router]);
 
   useEffect(() => {
     async function loadDoctors() {
@@ -101,6 +111,7 @@ export default function PatientDashboard() {
           doctorId: doctor.id,
           doctorName: doctor.name,
           patientId: user.uid,
+          patientName: profile ? `${profile.firstName} ${profile.lastName}` : "",
           slotId: slot.id,
           startTime: slot.startTime,
           status: "booked",
@@ -124,7 +135,13 @@ export default function PatientDashboard() {
     }
   }
 
-  if (loading || !user || (role && role !== "patient")) {
+  if (
+    loading ||
+    loadingProfile ||
+    !user ||
+    (role && role !== "patient") ||
+    (profile && !profile.profileComplete)
+  ) {
     return <main style={{ padding: 24 }}>Loading...</main>;
   }
 
