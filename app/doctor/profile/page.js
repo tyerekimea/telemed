@@ -7,20 +7,24 @@ import { db } from "../../../lib/firebase";
 import { useAuth } from "../../../lib/useAuth";
 import { useUserProfile } from "../../../lib/useUserProfile";
 
-// Required before a patient can book — see the profileComplete check in
-// patient/dashboard and patient/appointments. Also editable anytime after,
-// by revisiting this page — it's not a one-time-only form.
+// Required before a doctor can reach their dashboard — same pattern as the
+// patient profile form. Filled in before the verification-pending check,
+// so an admin reviewing pending doctors in /admin already has a real name
+// to go on, not just an email. Also editable anytime after, by revisiting
+// this page.
+//
+// This data feeds directly into the doctors collection entry created
+// automatically when an admin approves this account — see app/admin/page.js.
 
-export default function PatientProfileForm() {
+export default function DoctorProfileForm() {
   const { user, role, loading } = useAuth();
   const { profile, loadingProfile } = useUserProfile(user);
   const router = useRouter();
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [dob, setDob] = useState("");
+  const [specialty, setSpecialty] = useState("");
   const [phone, setPhone] = useState("");
-  const [gender, setGender] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -28,25 +32,24 @@ export default function PatientProfileForm() {
     if (loading) return;
     if (!user) {
       router.push("/login");
-    } else if (role && role !== "patient") {
-      router.push("/doctor/dashboard");
+    } else if (role && role !== "doctor") {
+      router.push("/patient/dashboard");
     }
   }, [user, role, loading, router]);
 
-  // Pre-fill the form if the patient's revisiting to edit an existing profile.
+  // Pre-fill if revisiting to edit an existing profile.
   useEffect(() => {
     if (!profile) return;
     setFirstName(profile.firstName || "");
     setLastName(profile.lastName || "");
-    setDob(profile.dob || "");
+    setSpecialty(profile.specialty || "");
     setPhone(profile.phone || "");
-    setGender(profile.gender || "");
   }, [profile]);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    if (!firstName.trim() || !lastName.trim() || !dob || !phone.trim() || !gender) {
+    if (!firstName.trim() || !lastName.trim() || !specialty.trim() || !phone.trim()) {
       setError("Please fill in every field.");
       return;
     }
@@ -55,12 +58,11 @@ export default function PatientProfileForm() {
       await updateDoc(doc(db, "users", user.uid), {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        dob,
+        specialty: specialty.trim(),
         phone: phone.trim(),
-        gender,
         profileComplete: true,
       });
-      router.push("/patient/dashboard");
+      router.push("/doctor/dashboard");
     } catch (err) {
       console.error(err);
       setError("Couldn't save your details. Please try again.");
@@ -69,7 +71,7 @@ export default function PatientProfileForm() {
     }
   }
 
-  if (loading || loadingProfile || !user || (role && role !== "patient")) {
+  if (loading || loadingProfile || !user || (role && role !== "doctor")) {
     return <main style={{ padding: 24 }}>Loading...</main>;
   }
 
@@ -77,7 +79,7 @@ export default function PatientProfileForm() {
     <main style={{ padding: 24, maxWidth: 400, margin: "0 auto" }}>
       <h1>Complete your profile</h1>
       <p style={{ color: "#666" }}>
-        We need a few details before you can book an appointment.
+        Patients will see this once your account is approved.
       </p>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <label>
@@ -101,11 +103,12 @@ export default function PatientProfileForm() {
           />
         </label>
         <label>
-          Date of birth
+          Specialty
           <input
-            type="date"
-            value={dob}
-            onChange={(e) => setDob(e.target.value)}
+            type="text"
+            value={specialty}
+            onChange={(e) => setSpecialty(e.target.value)}
+            placeholder="e.g. General Practice"
             style={{ display: "block", width: "100%" }}
             required
           />
@@ -119,21 +122,6 @@ export default function PatientProfileForm() {
             style={{ display: "block", width: "100%" }}
             required
           />
-        </label>
-        <label>
-          Gender
-          <select
-            value={gender}
-            onChange={(e) => setGender(e.target.value)}
-            style={{ display: "block", width: "100%" }}
-            required
-          >
-            <option value="">Select...</option>
-            <option value="female">Female</option>
-            <option value="male">Male</option>
-            <option value="other">Other</option>
-            <option value="prefer_not_to_say">Prefer not to say</option>
-          </select>
         </label>
         {error && <p style={{ color: "red" }}>{error}</p>}
         <button type="submit" disabled={saving}>
