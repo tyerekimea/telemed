@@ -1,6 +1,7 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 
+// redeploy trigger
 // Set with: firebase functions:secrets:set DAILY_API_KEY
 // (get the key from the Daily.co dashboard → Developers tab)
 const dailyApiKey = defineSecret("DAILY_API_KEY");
