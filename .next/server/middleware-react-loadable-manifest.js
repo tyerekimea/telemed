@@ -1,1 +1,0 @@
-self.__REACT_LOADABLE_MANIFEST="{\"app/call/page.js -> @daily-co/daily-js\":{\"id\":\"app/call/page.js -> @daily-co/daily-js\",\"files\":[\"static/chunks/_app-pages-browser_node_modules_daily-co_daily-js_dist_daily-esm_js.js\"]}}"
