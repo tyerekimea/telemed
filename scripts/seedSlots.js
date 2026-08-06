@@ -20,8 +20,10 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-// Slot times offered each day (24h format).
-const DAILY_TIMES = ["09:00", "10:00", "11:00", "14:00", "15:00", "16:00"];
+// Slot times offered each day (24h format). 10am–4pm with a lunch break.
+const DAILY_TIMES = ["10:00", "11:00", "14:00", "15:00", "16:00"];
+// 0 = the day this script runs, through DAYS_AHEAD - 1 (5 days total,
+// starting today rather than tomorrow).
 const DAYS_AHEAD = 5;
 
 async function seedSlots() {
@@ -31,6 +33,8 @@ async function seedSlots() {
     console.log("No doctors found. Add at least one doctor document first.");
     return;
   }
+
+  const now = new Date();
 
   for (const doctorDoc of doctorsSnap.docs) {
     const slotsRef = doctorDoc.ref.collection("slots");
@@ -47,7 +51,7 @@ async function seedSlots() {
     let created = 0;
     let skipped = 0;
 
-    for (let dayOffset = 1; dayOffset <= DAYS_AHEAD; dayOffset++) {
+    for (let dayOffset = 0; dayOffset < DAYS_AHEAD; dayOffset++) {
       const date = new Date();
       date.setDate(date.getDate() + dayOffset);
 
@@ -55,6 +59,13 @@ async function seedSlots() {
         const [hour, minute] = time.split(":").map(Number);
         const slotDate = new Date(date);
         slotDate.setHours(hour, minute, 0, 0);
+
+        // For today specifically, don't create a slot that's already in
+        // the past (e.g. running this at 1pm shouldn't offer a 10am slot).
+        if (slotDate <= now) {
+          continue;
+        }
+
         const slotMillis = slotDate.getTime();
 
         if (existingTimes.has(slotMillis)) {

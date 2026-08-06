@@ -116,7 +116,9 @@ capacitor.config.json       points Capacitor at the Next.js export output
    ```
    node scripts/seedSlots.js
    ```
-   This creates 6 open slots a day, 5 weekdays out, for every doctor.
+   This creates open 10am–4pm slots (with a lunch gap) for 5 days starting
+   today, for every doctor. Safe to re-run anytime — it skips times that
+   already exist or have already passed.
 7. Install dependencies and run:
    ```
    npm install
