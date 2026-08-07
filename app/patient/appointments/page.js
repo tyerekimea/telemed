@@ -7,6 +7,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../../../lib/firebase";
 import { useAuth } from "../../../lib/useAuth";
 import { useUserProfile } from "../../../lib/useUserProfile";
+import { printPrescription, printInvestigationRequest } from "../../../lib/printDocument";
 
 const ALLOWED_TYPES = [
   "image/png",
@@ -144,6 +145,47 @@ export default function PatientAppointments() {
             <div style={{ marginTop: 12, padding: 12, background: "#f7f7f7", borderRadius: 6 }}>
               <p style={{ margin: "0 0 4px", fontSize: 14, color: "#666" }}>Visit notes</p>
               <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{appt.notes}</p>
+            </div>
+          )}
+          {appt.prescription?.medications && (
+            <div style={{ marginTop: 12, padding: 12, background: "#f7f7f7", borderRadius: 6 }}>
+              <p style={{ margin: "0 0 4px", fontSize: 14, color: "#666" }}>Prescription</p>
+              {appt.prescription.diagnosis && (
+                <p style={{ margin: "0 0 4px" }}>
+                  <strong>Diagnosis:</strong> {appt.prescription.diagnosis}
+                </p>
+              )}
+              <p style={{ margin: "0 0 8px", whiteSpace: "pre-wrap" }}>{appt.prescription.medications}</p>
+              <button
+                onClick={() =>
+                  printPrescription({ ...appt.prescription, patientName: appt.patientName })
+                }
+              >
+                Print
+              </button>
+            </div>
+          )}
+          {appt.investigationRequest?.testsRequested && (
+            <div style={{ marginTop: 12, padding: 12, background: "#f7f7f7", borderRadius: 6 }}>
+              <p style={{ margin: "0 0 4px", fontSize: 14, color: "#666" }}>
+                Investigation request
+                {appt.investigationRequest.urgency === "urgent" && (
+                  <span style={{ color: "red", fontWeight: "bold" }}> — URGENT</span>
+                )}
+              </p>
+              <p style={{ margin: "0 0 8px", whiteSpace: "pre-wrap" }}>
+                {appt.investigationRequest.testsRequested}
+              </p>
+              <button
+                onClick={() =>
+                  printInvestigationRequest({
+                    ...appt.investigationRequest,
+                    patientName: appt.patientName,
+                  })
+                }
+              >
+                Print
+              </button>
             </div>
           )}
           <div style={{ marginTop: 12 }}>

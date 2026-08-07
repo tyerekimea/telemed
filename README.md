@@ -40,23 +40,36 @@ users/{uid}
   profileComplete: bool   — gates dashboard access until filled in
   email
   # patient profile fields: firstName, lastName, dob, phone, gender
-  # doctor profile fields:  firstName, lastName, specialty, phone
+  # doctor profile fields:  firstName, lastName, specialty, phone,
+  #                         licenseNumber (medical registration/MDCN no.)
 
 doctors/{uid}              — public listing, uid = the doctor's own Auth uid
   name, specialty, verified: true
   # auto-created when an admin approves a doctor in /admin
+  # (licenseNumber is NOT copied here — stays private on users/{uid},
+  # only surfaced on issued documents, see below)
   slots/{slotId}
     startTime, booked
 
 appointments/{id}
   doctorId, doctorName, patientId, patientName
   slotId, startTime, status, roomUrl
-  notes           — doctor-editable
-  attachments     — patient-editable, array of {name, url, uploadedAt}
+  notes                 — doctor-editable, free text
+  prescription          — doctor-editable: { diagnosis, medications,
+                           doctorName, specialty, licenseNumber, issuedAt }
+  investigationRequest  — doctor-editable: { clinicalNotes, testsRequested,
+                           urgency, doctorName, specialty, licenseNumber, issuedAt }
+  attachments            — patient-editable, array of {name, url, uploadedAt}
   createdAt
 
 admins/{uid}                — existence-only marker; presence gates /admin
 ```
+
+Note on `prescription`/`investigationRequest`: the doctor's name,
+specialty, and license number are copied into the document at the moment
+it's issued, rather than looked up live from their profile — a
+prescription should stay accurate to who actually issued it even if the
+doctor's profile changes later. See `lib/printDocument.js`.
 
 ## Security model
 
@@ -117,8 +130,16 @@ to the current time client-side — no stored status field for this:
 
 - **`/doctor/dashboard`** (Pending) — upcoming appointments: patient
   name, Video/Voice call buttons, any files the patient uploaded
-- **`/doctor/dashboard/past`** — elapsed appointments: just the visit
-  notes editor
+- **`/doctor/dashboard/past`** — elapsed appointments: visit notes,
+  prescription, and investigation request — three independent free-text
+  forms, each with its own save button (a doctor can save one without
+  touching the others). Prescription and investigation request also get
+  a **Print** button once they have content, opening a clean
+  letterhead-style printable version (patient name, date, doctor's name/
+  specialty/license number) via the browser's print dialog — the
+  standard way to get a savable PDF without a PDF library or backend
+  rendering service. The patient sees read-only versions of all three,
+  with their own matching Print buttons, on `/patient/appointments`.
 
 ## Project structure
 
@@ -131,7 +152,7 @@ app/
   patient/appointments/page.js   own bookings, join call, attach files
   doctor/profile/page.js         required doctor registration form
   doctor/dashboard/page.js       pending appointments
-  doctor/dashboard/past/page.js  past appointments, visit notes
+  doctor/dashboard/past/page.js  past appointments, notes, prescription, investigation request
   call/page.js                   the actual video/voice call screen
   admin/page.js                  approve pending doctors
 components/
@@ -141,6 +162,7 @@ lib/
   useAuth.js           current user + role
   useIsAdmin.js         checks the admins collection
   useUserProfile.js      fetches a user's profile doc (patient or doctor)
+  printDocument.js        letterhead-style print helpers for Rx/investigation
 functions/
   index.js              Cloud Function: creates a Daily.co room per booking
 scripts/
@@ -205,6 +227,12 @@ npx cap open android      # or: npx cap open ios
 
 ## Known limitations / not yet built
 
+- **Prescriptions and investigation requests are free-text**, not
+  structured per-drug/per-test rows with dose/frequency validation —
+  the doctor types medications and tests as plain text. This means no
+  drug-interaction checking, no formulary lookup, no structured data a
+  pharmacy system could parse automatically. It's a documentation tool,
+  not clinical decision support.
 - **Email verification** — signup only checks an email is
   *syntactically* valid, not real or owned by the signer-upper. Fix:
   `sendEmailVerification()` plus a dashboard gate on Auth's
@@ -225,7 +253,7 @@ npx cap open android      # or: npx cap open ios
 - **Mobile build untested** — the Capacitor Android/iOS wrapper has
   never been built and run end-to-end; everything's been verified on
   web only so far.
-- **Payments and e-prescriptions** — not built.
+- **Payments** — not built.
 
 ## Test data
 
