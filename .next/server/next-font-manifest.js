@@ -1,1 +1,1 @@
-self.__NEXT_FONT_MANIFEST='{"pages":{},"app":{},"appUsingSizeAdjust":false,"pagesUsingSizeAdjust":false}';
+self.__NEXT_FONT_MANIFEST="{\"pages\":{},\"app\":{\"/workspaces/telemed/app/page\":[\"static/media/6ba5f591ae6c56f6-s.p.woff2\",\"static/media/af4bf8399d1aacdf-s.p.woff2\",\"static/media/98e207f02528a563-s.p.woff2\",\"static/media/636a5ac981f94f8b-s.p.woff2\"]},\"appUsingSizeAdjust\":true,\"pagesUsingSizeAdjust\":false}"

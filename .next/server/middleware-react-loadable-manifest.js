@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST='{"app/call/page.js -> @daily-co/daily-js":{"id":1209,"files":["static/chunks/d50e61c5.66b7e0fbfdba2e6e.js"]}}';
+self.__REACT_LOADABLE_MANIFEST="{}"
