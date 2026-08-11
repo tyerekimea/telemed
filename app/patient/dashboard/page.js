@@ -83,7 +83,14 @@ export default function PatientDashboard() {
       const snapshot = await getDocs(slotsQuery);
       const loadedSlots = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
       loadedSlots.sort((a, b) => a.startTime.toMillis() - b.startTime.toMillis());
-      setSlots(loadedSlots);
+      // A slot can still exist as "unbooked" in Firestore after its actual
+      // time has passed — nobody ever booked it, so nothing ever marked it
+      // stale. Filter those out here rather than showing an appointment
+      // time that's already gone (and would fail room creation anyway,
+      // since Daily rejects an expiry time that's already in the past).
+      const now = Date.now();
+      const futureSlots = loadedSlots.filter((s) => s.startTime.toMillis() > now);
+      setSlots(futureSlots);
     } catch (err) {
       console.error(err);
       setSlotsError("Couldn't load available times. Please try again.");
