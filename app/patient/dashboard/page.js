@@ -5,11 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   collection,
   getDocs,
-  doc,
-  serverTimestamp,
   query,
   where,
-  runTransaction,
 } from "firebase/firestore";
 import { db, functions } from "../../../lib/firebase";
 import { httpsCallable } from "firebase/functions";
@@ -18,7 +15,7 @@ import { useIsAdmin } from "../../../lib/useIsAdmin";
 import { useUserProfile } from "../../../lib/useUserProfile";
 import DoctorCard from "../../../components/DoctorCard";
 
-const createDailyRoom = httpsCallable(functions, "createDailyRoom");
+const bookAppointment = httpsCallable(functions, "bookAppointment");
 
 // MVP note: doctors are read from a "doctors" collection you seed manually
 // in Firestore for now (id, name, specialty, verified: true). Slots come
@@ -104,65 +101,36 @@ export default function PatientDashboard() {
     setBookingError("");
     setBookingSlotId(slot.id);
 
-    let roomUrl;
     try {
-      // Create the video room first, outside the transaction — a
-      // transaction should only touch Firestore, not make an external
-      // network call (createDailyRoom hits Daily.co's API server-side).
-      const result = await createDailyRoom({ startTimeMillis: slot.startTime.toMillis() });
-      roomUrl = result.data.roomUrl;
-    } catch (err) {
-      console.error(err);
-      setBookingError("Couldn't set up the video room. Please try again.");
-      setBookingSlotId(null);
-      return;
-    }
+    await bookAppointment({
+      doctorId: doctor.id,
+      slotId: slot.id,
+    });
 
-    const slotRef = doc(db, "doctors", doctor.id, "slots", slot.id);
-    // Generate the appointment's ID up front so it can be written inside
-    // the same transaction as the slot update.
-    const appointmentRef = doc(collection(db, "appointments"));
+    setSlots((prev) => prev.filter((s) => s.id !== slot.id));
 
-    try {
-      await runTransaction(db, async (transaction) => {
-        const slotSnap = await transaction.get(slotRef);
-        if (!slotSnap.exists() || slotSnap.data().booked) {
-          // Someone else booked this exact slot between us loading the
-          // list and clicking it — bail out before writing anything.
-          // Note: the room created above just goes unused in this case;
-          // it still auto-expires an hour after the slot's start time,
-          // so nothing needs cleaning up manually.
-          throw new Error("SLOT_TAKEN");
-        }
-        transaction.update(slotRef, { booked: true });
-        transaction.set(appointmentRef, {
-          doctorId: doctor.id,
-          doctorName: doctor.name,
-          roomUrl,
-          patientId: user.uid,
-          patientName: profile ? `${profile.firstName} ${profile.lastName}` : "",
-          slotId: slot.id,
-          startTime: slot.startTime,
-          status: "booked",
-          createdAt: serverTimestamp(),
-        });
-      });
-      setSlots((prev) => prev.filter((s) => s.id !== slot.id));
-      setConfirmation(
-        `Booked with ${doctor.name} for ${slot.startTime.toDate().toLocaleString()}.`
+    setConfirmation(
+      `Booked with ${doctor.name} for ${slot.startTime
+        .toDate()
+        .toLocaleString()}.`
+    );
+  } catch (err) {
+    console.error(err);
+
+    if (err.code === "functions/already-exists") {
+      setBookingError(
+        "That time was just booked by someone else — pick another."
       );
-    } catch (err) {
-      console.error(err);
-      if (err.message === "SLOT_TAKEN") {
-        setBookingError("That time was just booked by someone else — pick another.");
-        setSlots((prev) => prev.filter((s) => s.id !== slot.id));
-      } else {
-        setBookingError("Couldn't book that slot. Please try again.");
-      }
-    } finally {
-      setBookingSlotId(null);
+      setSlots((prev) => prev.filter((s) => s.id !== slot.id));
+    } else {
+      setBookingError(
+        err.message || "Couldn't book that slot. Please try again."
+      );
     }
+  } finally {
+    setBookingSlotId(null);
   }
+}
 
   if (
     loading ||
