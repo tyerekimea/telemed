@@ -1,0 +1,47 @@
+diff --git a/firestore.rules b/firestore.rules
+index 1e4a15e..95e8f28 100644
+--- a/firestore.rules
++++ b/firestore.rules
+@@ -43,24 +43,30 @@ service cloud.firestore {
+       allow read: if true;
+       allow write: if isAdmin();
+ 
+-      // Open slots: readable by anyone signed in; only the booking flow
+-      // (a signed-in user marking a slot booked) may update, never delete.
++      // Open slots: readable by anyone signed in. All writes — creating
++      // availability and marking a slot booked — go exclusively through
++      // the setDoctorAvailability / bookAppointment Cloud Functions
++      // (functions/index.js), which run on the Admin SDK and are not
++      // bound by these rules. No client write path is allowed here, so
++      // a slot can't be marked booked (or created) without also going
++      // through that functions' validation — verified-doctor checks,
++      // transaction re-checks against double-booking, etc.
+       match /slots/{slotId} {
+         allow read: if request.auth != null;
+-        allow update: if request.auth != null
+-          && request.resource.data.booked == true
+-          && resource.data.booked == false;
+-        allow create, delete: if false; // seeded via admin script only
++        allow write: if false;
+       }
+     }
+ 
+-    // Appointments: a patient can create one for themselves. Reads are
+-    // scoped to whoever's actually involved — the booking patient or the
+-    // doctor whose uid matches doctorId (see the doctors collection note
+-    // above: doctor doc IDs = the doctor's own auth uid).
++    // Appointments: created exclusively by the bookAppointment Cloud
++    // Function (Admin SDK) — never directly by a client — so every
++    // appointment is guaranteed to have gone through that function's
++    // checks (verified doctor, real unbooked slot, matching startTime,
++    // server-issued roomUrl). Reads are scoped to whoever's actually
++    // involved — the booking patient or the doctor whose uid matches
++    // doctorId (see the doctors collection note above: doctor doc IDs =
++    // the doctor's own auth uid).
+     match /appointments/{appointmentId} {
+-      allow create: if request.auth != null
+-        && request.resource.data.patientId == request.auth.uid;
++      allow create: if false;
+       allow read: if request.auth != null
+         && (resource.data.patientId == request.auth.uid
+             || resource.data.doctorId == request.auth.uid);
