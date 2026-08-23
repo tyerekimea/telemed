@@ -8,6 +8,7 @@ import { db, storage } from "../../../lib/firebase";
 import { useAuth } from "../../../lib/useAuth";
 import { useUserProfile } from "../../../lib/useUserProfile";
 import { printPrescription, printInvestigationRequest } from "../../../lib/printDocument";
+import AppHeader from "../../../components/AppHeader";
 
 const ALLOWED_TYPES = [
   "image/png",
@@ -116,106 +117,130 @@ export default function PatientAppointments() {
   }
 
   if (loading || loadingProfile || !user || (profile && !profile.profileComplete)) {
-    return <main style={{ padding: 24 }}>Loading...</main>;
+    return <main className="loadingShell">Loading...</main>;
   }
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1>Your appointments</h1>
-      {loadingAppts && <p>Loading...</p>}
-      {apptsError && <p style={{ color: "red" }}>{apptsError}</p>}
-      {!loadingAppts && !apptsError && appointments.length === 0 && (
-        <p>No appointments booked yet. Head back to find a doctor.</p>
-      )}
-      {appointments.map((appt) => (
-        <div key={appt.id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 12 }}>
-          <p style={{ margin: "0 0 4px" }}><strong>{appt.doctorName}</strong></p>
-          <p style={{ margin: "0 0 8px", color: "#666" }}>
-            {appt.startTime?.toDate().toLocaleString()}
-          </p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => router.push(`/call?appointmentId=${appt.id}&mode=video`)}>
-              Video call
-            </button>
-            <button onClick={() => router.push(`/call?appointmentId=${appt.id}&mode=voice`)}>
-              Voice call
-            </button>
-          </div>
-          {appt.notes && (
-            <div style={{ marginTop: 12, padding: 12, background: "#f7f7f7", borderRadius: 6 }}>
-              <p style={{ margin: "0 0 4px", fontSize: 14, color: "#666" }}>Visit notes</p>
-              <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{appt.notes}</p>
+    <main className="shell">
+      <AppHeader backHref="/patient/dashboard" />
+      <div className="container">
+        <p className="eyebrow">Patient dashboard</p>
+        <h1 className="pageTitle" style={{ marginBottom: 24 }}>
+          Your appointments
+        </h1>
+        {loadingAppts && <p className="emptyState">Loading...</p>}
+        {apptsError && <p className="errorBox">{apptsError}</p>}
+        {!loadingAppts && !apptsError && appointments.length === 0 && (
+          <p className="emptyState">No appointments booked yet. Head back to find a doctor.</p>
+        )}
+        {appointments.map((appt) => (
+          <div key={appt.id} className="card">
+            <p className="cardTitle">{appt.doctorName}</p>
+            <p className="cardMeta">{appt.startTime?.toDate().toLocaleString()}</p>
+            <div className="rowGap">
+              <button
+                onClick={() => router.push(`/call?appointmentId=${appt.id}&mode=video`)}
+                className="btnPrimary"
+              >
+                Video call
+              </button>
+              <button
+                onClick={() => router.push(`/call?appointmentId=${appt.id}&mode=voice`)}
+                className="btnSecondary"
+              >
+                Voice call
+              </button>
             </div>
-          )}
-          {appt.prescription?.medications && (
-            <div style={{ marginTop: 12, padding: 12, background: "#f7f7f7", borderRadius: 6 }}>
-              <p style={{ margin: "0 0 4px", fontSize: 14, color: "#666" }}>Prescription</p>
-              {appt.prescription.diagnosis && (
-                <p style={{ margin: "0 0 4px" }}>
-                  <strong>Diagnosis:</strong> {appt.prescription.diagnosis}
+
+            {appt.notes && (
+              <div className="subBlock">
+                <p className="subBlockLabel">Visit notes</p>
+                <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{appt.notes}</p>
+              </div>
+            )}
+
+            {appt.prescription?.medications && (
+              <div className="subBlock">
+                <p className="subBlockLabel">Prescription</p>
+                {appt.prescription.diagnosis && (
+                  <p style={{ margin: "0 0 6px" }}>
+                    <strong>Diagnosis:</strong> {appt.prescription.diagnosis}
+                  </p>
+                )}
+                <p style={{ margin: "0 0 12px", whiteSpace: "pre-wrap" }}>
+                  {appt.prescription.medications}
+                </p>
+                <button
+                  onClick={() =>
+                    printPrescription({ ...appt.prescription, patientName: appt.patientName })
+                  }
+                  className="btnSecondary"
+                >
+                  Print
+                </button>
+              </div>
+            )}
+
+            {appt.investigationRequest?.testsRequested && (
+              <div className="subBlock">
+                <p className="subBlockLabel">
+                  Investigation request
+                  {appt.investigationRequest.urgency === "urgent" && (
+                    <span className="badgeUrgent">Urgent</span>
+                  )}
+                </p>
+                <p style={{ margin: "0 0 12px", whiteSpace: "pre-wrap" }}>
+                  {appt.investigationRequest.testsRequested}
+                </p>
+                <button
+                  onClick={() =>
+                    printInvestigationRequest({
+                      ...appt.investigationRequest,
+                      patientName: appt.patientName,
+                    })
+                  }
+                  className="btnSecondary"
+                >
+                  Print
+                </button>
+              </div>
+            )}
+
+            <div style={{ marginTop: 16 }}>
+              <label className="labelMuted">
+                Attach a file for the doctor (PNG, JPG, PDF, or Word — max 10MB)
+              </label>
+              <input
+                type="file"
+                accept=".png,.jpg,.jpeg,.pdf,.doc,.docx"
+                disabled={uploadingId === appt.id}
+                onChange={(e) => handleFileSelect(appt.id, e)}
+              />
+              {uploadingId === appt.id && (
+                <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--ink-soft)" }}>
+                  Uploading...
                 </p>
               )}
-              <p style={{ margin: "0 0 8px", whiteSpace: "pre-wrap" }}>{appt.prescription.medications}</p>
-              <button
-                onClick={() =>
-                  printPrescription({ ...appt.prescription, patientName: appt.patientName })
-                }
-              >
-                Print
-              </button>
+              {uploadError[appt.id] && (
+                <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--danger)" }}>
+                  {uploadError[appt.id]}
+                </p>
+              )}
+              {appt.attachments?.length > 0 && (
+                <ul className="fileList">
+                  {appt.attachments.map((file, i) => (
+                    <li key={i}>
+                      <a href={file.url} target="_blank" rel="noopener noreferrer">
+                        {file.name}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-          )}
-          {appt.investigationRequest?.testsRequested && (
-            <div style={{ marginTop: 12, padding: 12, background: "#f7f7f7", borderRadius: 6 }}>
-              <p style={{ margin: "0 0 4px", fontSize: 14, color: "#666" }}>
-                Investigation request
-                {appt.investigationRequest.urgency === "urgent" && (
-                  <span style={{ color: "red", fontWeight: "bold" }}> — URGENT</span>
-                )}
-              </p>
-              <p style={{ margin: "0 0 8px", whiteSpace: "pre-wrap" }}>
-                {appt.investigationRequest.testsRequested}
-              </p>
-              <button
-                onClick={() =>
-                  printInvestigationRequest({
-                    ...appt.investigationRequest,
-                    patientName: appt.patientName,
-                  })
-                }
-              >
-                Print
-              </button>
-            </div>
-          )}
-          <div style={{ marginTop: 12 }}>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 14, color: "#666" }}>
-              Attach a file for the doctor (PNG, JPG, PDF, or Word — max 10MB)
-            </label>
-            <input
-              type="file"
-              accept=".png,.jpg,.jpeg,.pdf,.doc,.docx"
-              disabled={uploadingId === appt.id}
-              onChange={(e) => handleFileSelect(appt.id, e)}
-            />
-            {uploadingId === appt.id && <p style={{ margin: "4px 0", fontSize: 14 }}>Uploading...</p>}
-            {uploadError[appt.id] && (
-              <p style={{ margin: "4px 0", fontSize: 14, color: "red" }}>{uploadError[appt.id]}</p>
-            )}
-            {appt.attachments?.length > 0 && (
-              <ul style={{ marginTop: 8, paddingLeft: 20 }}>
-                {appt.attachments.map((file, i) => (
-                  <li key={i}>
-                    <a href={file.url} target="_blank" rel="noopener noreferrer">
-                      {file.name}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </main>
   );
 }

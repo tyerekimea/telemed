@@ -14,6 +14,7 @@ import { useAuth } from "../../../lib/useAuth";
 import { useIsAdmin } from "../../../lib/useIsAdmin";
 import { useUserProfile } from "../../../lib/useUserProfile";
 import DoctorCard from "../../../components/DoctorCard";
+import AppHeader from "../../../components/AppHeader";
 
 const bookAppointment = httpsCallable(functions, "bookAppointment");
 
@@ -139,52 +140,76 @@ export default function PatientDashboard() {
     (role && role !== "patient") ||
     (profile && !profile.profileComplete)
   ) {
-    return <main style={{ padding: 24 }}>Loading...</main>;
+    return <main className="loadingShell">Loading...</main>;
   }
 
   return (
-    <main style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>Find a doctor</h1>
-        <div style={{ display: "flex", gap: 8 }}>
-          {isAdmin && <button onClick={() => router.push("/admin")}>Admin</button>}
-          <button onClick={() => router.push("/patient/appointments")}>My appointments</button>
-        </div>
+    <main className="shell">
+      <AppHeader
+        backHref="/"
+        right={
+          <>
+            {isAdmin && (
+              <button onClick={() => router.push("/admin")} className="btnSecondary">
+                Admin
+              </button>
+            )}
+            <button
+              onClick={() => router.push("/patient/appointments")}
+              className="btnSecondary"
+            >
+              My appointments
+            </button>
+          </>
+        }
+      />
+      <div className="container">
+        <p className="eyebrow">Patient dashboard</p>
+        <h1 className="pageTitle" style={{ marginBottom: 24 }}>
+          Find a doctor
+        </h1>
+        {confirmation && <p className="successBox">{confirmation}</p>}
+        {doctors.length === 0 && (
+          <p className="emptyState">
+            No doctors available yet — seed the "doctors" collection in Firestore.
+          </p>
+        )}
+        {doctors.map((doctor) => (
+          <div key={doctor.id}>
+            <DoctorCard doctor={doctor} onBook={handleSelectDoctor} />
+            {openDoctorId === doctor.id && (
+              <div style={{ margin: "-6px 0 20px", paddingLeft: 4 }}>
+                {slotsLoading && <p className="emptyState">Loading times...</p>}
+                {slotsError && <p className="errorBox">{slotsError}</p>}
+                {bookingError && <p className="errorBox">{bookingError}</p>}
+                {!slotsLoading && !slotsError && slots.length === 0 && (
+                  <p className="emptyState">No open slots right now.</p>
+                )}
+                {!slotsLoading && !slotsError && slots.length > 0 && (
+                  <div className="slotGrid">
+                    {slots.map((slot) => (
+                      <button
+                        key={slot.id}
+                        onClick={() => handleBookSlot(doctor, slot)}
+                        disabled={bookingSlotId === slot.id}
+                        className="slotBtn"
+                      >
+                        {bookingSlotId === slot.id
+                          ? "Booking..."
+                          : slot.startTime.toDate().toLocaleString([], {
+                              weekday: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
-      {confirmation && <p style={{ color: "green" }}>{confirmation}</p>}
-      {doctors.length === 0 && <p>No doctors available yet — seed the "doctors" collection in Firestore.</p>}
-      {doctors.map((doctor) => (
-        <div key={doctor.id}>
-          <DoctorCard doctor={doctor} onBook={handleSelectDoctor} />
-          {openDoctorId === doctor.id && (
-            <div style={{ margin: "-4px 0 16px", paddingLeft: 16 }}>
-              {slotsLoading && <p>Loading times...</p>}
-              {slotsError && <p style={{ color: "red" }}>{slotsError}</p>}
-              {bookingError && <p style={{ color: "red" }}>{bookingError}</p>}
-              {!slotsLoading && !slotsError && slots.length === 0 && <p>No open slots right now.</p>}
-              {!slotsLoading &&
-                !slotsError &&
-                slots.map((slot) => (
-                  <button
-                    key={slot.id}
-                    onClick={() => handleBookSlot(doctor, slot)}
-                    disabled={bookingSlotId === slot.id}
-                    style={{ marginRight: 8, marginBottom: 8 }}
-                  >
-                    {bookingSlotId === slot.id
-                      ? "Booking..."
-                      : slot.startTime.toDate().toLocaleString([], {
-                          weekday: "short",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                  </button>
-                ))}
-            </div>
-          )}
-        </div>
-      ))}
     </main>
   );
 }
-

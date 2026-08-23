@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/useAuth";
+import AppHeader from "../../components/AppHeader";
 
 // Access to this page is gated by the "admins" collection in Firestore —
 // see README for how to add yourself as the one admin account. This is
@@ -85,61 +86,67 @@ export default function AdminPanel() {
   }
 
   if (loading || checkingAdmin) {
-    return <main style={{ padding: 24 }}>Loading...</main>;
+    return <main className="loadingShell">Loading...</main>;
   }
 
   if (!isAdmin) {
     return (
-      <main style={{ padding: 24 }}>
-        <p>You don't have access to this page.</p>
+      <main className="shell">
+        <AppHeader backHref="/" />
+        <div className="container">
+          <p className="emptyState">You don't have access to this page.</p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1>Pending doctor approvals</h1>
-      {loadError && <p style={{ color: "red" }}>{loadError}</p>}
-      {loadingDoctors && <p>Loading...</p>}
-      {!loadingDoctors && !loadError && pendingDoctors.length === 0 && (
-        <p>No doctors waiting for approval.</p>
-      )}
-      {pendingDoctors.map((doctor) => {
-        const profileComplete = doctor.firstName && doctor.lastName && doctor.specialty;
-        return (
-          <div
-            key={doctor.id}
-            style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 12 }}
-          >
-            <p style={{ margin: "0 0 4px" }}>
-              <strong>
+    <main className="shell">
+      <AppHeader backHref="/" />
+      <div className="container">
+        <p className="eyebrow">Admin</p>
+        <h1 className="pageTitle" style={{ marginBottom: 24 }}>
+          Pending doctor approvals
+        </h1>
+        {loadError && <p className="errorBox">{loadError}</p>}
+        {loadingDoctors && <p className="emptyState">Loading...</p>}
+        {!loadingDoctors && !loadError && pendingDoctors.length === 0 && (
+          <p className="emptyState">No doctors waiting for approval.</p>
+        )}
+        {pendingDoctors.map((doctor) => {
+          const profileComplete = doctor.firstName && doctor.lastName && doctor.specialty;
+          return (
+            <div key={doctor.id} className="card">
+              <p className="cardTitle">
                 {profileComplete
                   ? `Dr. ${doctor.firstName} ${doctor.lastName}`
                   : doctor.email || "(no email on file)"}
-              </strong>
-            </p>
-            {profileComplete && (
-              <p style={{ margin: "0 0 4px", color: "#666" }}>{doctor.specialty}</p>
-            )}
-            {!profileComplete && (
-              <p style={{ margin: "0 0 4px", color: "#b45309", fontSize: 14 }}>
-                Hasn't completed their profile yet — approving unlocks their dashboard,
-                but they won't appear to patients until they do.
               </p>
-            )}
-            <p style={{ margin: "0 0 8px", color: "#666", fontSize: 14 }}>
-              uid: {doctor.id}
-            </p>
-            <button onClick={() => handleApprove(doctor)} disabled={approvingId === doctor.id}>
-              {approvingId === doctor.id ? "Approving..." : "Approve"}
-            </button>
-          </div>
-        );
-      })}
-      <p style={{ marginTop: 24, color: "#666", fontSize: 14 }}>
-        Approving a doctor with a completed profile automatically creates their
-        public listing — no manual Firestore step needed anymore.
-      </p>
+              {profileComplete && <p className="cardMeta">{doctor.specialty}</p>}
+              {!profileComplete && (
+                <p style={{ margin: "0 0 6px", color: "var(--amber-deep)", fontSize: 14 }}>
+                  Hasn't completed their profile yet — approving unlocks their dashboard,
+                  but they won't appear to patients until they do.
+                </p>
+              )}
+              <p style={{ margin: "0 0 14px", color: "var(--ink-faint)", fontSize: 13 }}>
+                uid: {doctor.id}
+              </p>
+              <button
+                onClick={() => handleApprove(doctor)}
+                disabled={approvingId === doctor.id}
+                className="btnPrimary"
+              >
+                {approvingId === doctor.id ? "Approving..." : "Approve"}
+              </button>
+            </div>
+          );
+        })}
+        <p style={{ marginTop: 24, color: "var(--ink-soft)", fontSize: 14 }}>
+          Approving a doctor with a completed profile automatically creates their
+          public listing — no manual Firestore step needed anymore.
+        </p>
+      </div>
     </main>
   );
 }

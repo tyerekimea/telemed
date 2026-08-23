@@ -1,4 +1,4 @@
-# Telemed
+# MedAxis Wellness
 
 A telemedicine MVP: patients book a doctor, video/voice call them (with
 in-call chat), attach files to help with diagnosis, and get visit notes

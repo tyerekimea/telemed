@@ -6,6 +6,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
 import { useAuth } from "../../../lib/useAuth";
 import { useUserProfile } from "../../../lib/useUserProfile";
+import AppHeader from "../../../components/AppHeader";
 
 // Required before a doctor can reach their dashboard — same pattern as the
 // patient profile form. Filled in before the verification-pending check,
@@ -72,62 +73,66 @@ export default function DoctorProfileForm() {
   }
 
   if (loading || loadingProfile || !user || (role && role !== "doctor")) {
-    return <main style={{ padding: 24 }}>Loading...</main>;
+    return <main className="loadingShell">Loading...</main>;
   }
 
   return (
-    <main style={{ padding: 24, maxWidth: 400, margin: "0 auto" }}>
-      <h1>Complete your profile</h1>
-      <p style={{ color: "#666" }}>
-        Patients will see this once your account is approved.
-      </p>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <label>
-          First name
-          <input
-            type="text"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            style={{ display: "block", width: "100%" }}
-            required
-          />
-        </label>
-        <label>
-          Last name
-          <input
-            type="text"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            style={{ display: "block", width: "100%" }}
-            required
-          />
-        </label>
-        <label>
-          Specialty
-          <input
-            type="text"
-            value={specialty}
-            onChange={(e) => setSpecialty(e.target.value)}
-            placeholder="e.g. General Practice"
-            style={{ display: "block", width: "100%" }}
-            required
-          />
-        </label>
-        <label>
-          Phone number
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            style={{ display: "block", width: "100%" }}
-            required
-          />
-        </label>
-        {error && <p style={{ color: "red" }}>{error}</p>}
-        <button type="submit" disabled={saving}>
-          {saving ? "Saving..." : "Save and continue"}
-        </button>
-      </form>
+    <main className="shell">
+      <AppHeader backHref="/doctor/dashboard" />
+      <div className="narrowContainer">
+        <p className="eyebrow">Doctor profile</p>
+        <h1 className="pageTitle">Complete your profile</h1>
+        <p className="pageSubtext">
+          Patients will see this once your account is approved.
+        </p>
+        <form onSubmit={handleSubmit} className="formShell">
+          <div className="field">
+            <label className="label">First name</label>
+            <input
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="input"
+              required
+            />
+          </div>
+          <div className="field">
+            <label className="label">Last name</label>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="input"
+              required
+            />
+          </div>
+          <div className="field">
+            <label className="label">Specialty</label>
+            <input
+              type="text"
+              value={specialty}
+              onChange={(e) => setSpecialty(e.target.value)}
+              placeholder="e.g. General Practice"
+              className="input"
+              required
+            />
+          </div>
+          <div className="field">
+            <label className="label">Phone number</label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="input"
+              required
+            />
+          </div>
+          {error && <p className="errorBox">{error}</p>}
+          <button type="submit" disabled={saving} className="btnPrimary">
+            {saving ? "Saving..." : "Save and continue"}
+          </button>
+        </form>
+      </div>
     </main>
   );
 }

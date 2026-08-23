@@ -1,4 +1,4 @@
-package com.tonbrayerekimea.telemed;
+package com.medaxiswellness.app;
 
 import com.getcapacitor.BridgeActivity;
 

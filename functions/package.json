@@ -1,6 +1,6 @@
 {
   "name": "functions",
-  "description": "Cloud Functions for telemed-app",
+  "description": "Cloud Functions for MedAxis Wellness",
   "main": "index.js",
   "engines": {
     "node": "22"

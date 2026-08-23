@@ -7,6 +7,7 @@ import { db } from "../../../lib/firebase";
 import { useAuth } from "../../../lib/useAuth";
 import { useIsAdmin } from "../../../lib/useIsAdmin";
 import { useUserProfile } from "../../../lib/useUserProfile";
+import AppHeader from "../../../components/AppHeader";
 
 // Doctor documents use the doctor's Firebase Auth uid as their document ID
 // (see README — when adding a doctor manually in Firestore, set the
@@ -70,63 +71,94 @@ export default function DoctorDashboard() {
     (role && role !== "doctor") ||
     (profile && !profile.profileComplete)
   ) {
-    return <main style={{ padding: 24 }}>Loading...</main>;
+    return <main className="loadingShell">Loading...</main>;
   }
 
   if (profile?.verified === false) {
     return (
-      <main style={{ padding: 24 }}>
-        <h1>Almost there</h1>
-        <p>Your account is pending verification. We'll let you know once an admin approves it.</p>
+      <main className="shell">
+        <AppHeader backHref="/" />
+        <div className="container">
+          <p className="eyebrow">Doctor dashboard</p>
+          <h1 className="pageTitle">Almost there</h1>
+          <p className="pageSubtext">
+            Your account is pending verification. We'll let you know once an admin approves it.
+          </p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>Pending appointments</h1>
-        <div style={{ display: "flex", gap: 8 }}>
-          {isAdmin && <button onClick={() => router.push("/admin")}>Admin</button>}
-          <button onClick={() => router.push("/doctor/dashboard/past")}>Past appointments</button>
-        </div>
-      </div>
-      {apptsError && <p style={{ color: "red" }}>{apptsError}</p>}
-      {!apptsError && appointments.length === 0 && <p>No upcoming appointments.</p>}
-      {appointments.map((appt) => (
-        <div key={appt.id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 12 }}>
-          <p style={{ margin: "0 0 4px" }}>
-            <strong>{appt.patientName || "(name not on file)"}</strong>
-          </p>
-          <p style={{ margin: "0 0 8px", color: "#666" }}>
-            {appt.startTime?.toDate().toLocaleString()}
-          </p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => router.push(`/call?appointmentId=${appt.id}&mode=video`)}>
-              Video call
+    <main className="shell">
+      <AppHeader
+        backHref="/"
+        right={
+          <>
+            {isAdmin && (
+              <button onClick={() => router.push("/admin")} className="btnSecondary">
+                Admin
+              </button>
+            )}
+            <button
+              onClick={() => router.push("/doctor/availability")}
+              className="btnSecondary"
+            >
+              My availability
             </button>
-            <button onClick={() => router.push(`/call?appointmentId=${appt.id}&mode=voice`)}>
-              Voice call
+            <button
+              onClick={() => router.push("/doctor/dashboard/past")}
+              className="btnSecondary"
+            >
+              Past appointments
             </button>
-          </div>
-          {appt.attachments?.length > 0 && (
-            <div style={{ marginTop: 12 }}>
-              <p style={{ margin: "0 0 4px", fontSize: 14, color: "#666" }}>
-                Files from patient
-              </p>
-              <ul style={{ margin: 0, paddingLeft: 20 }}>
-                {appt.attachments.map((file, i) => (
-                  <li key={i}>
-                    <a href={file.url} target="_blank" rel="noopener noreferrer">
-                      {file.name}
-                    </a>
-                  </li>
-                ))}
-              </ul>
+          </>
+        }
+      />
+      <div className="container">
+        <p className="eyebrow">Doctor dashboard</p>
+        <h1 className="pageTitle" style={{ marginBottom: 24 }}>
+          Pending appointments
+        </h1>
+        {apptsError && <p className="errorBox">{apptsError}</p>}
+        {!apptsError && appointments.length === 0 && (
+          <p className="emptyState">No upcoming appointments.</p>
+        )}
+        {appointments.map((appt) => (
+          <div key={appt.id} className="card">
+            <p className="cardTitle">{appt.patientName || "(name not on file)"}</p>
+            <p className="cardMeta">{appt.startTime?.toDate().toLocaleString()}</p>
+            <div className="rowGap">
+              <button
+                onClick={() => router.push(`/call?appointmentId=${appt.id}&mode=video`)}
+                className="btnPrimary"
+              >
+                Video call
+              </button>
+              <button
+                onClick={() => router.push(`/call?appointmentId=${appt.id}&mode=voice`)}
+                className="btnSecondary"
+              >
+                Voice call
+              </button>
             </div>
-          )}
-        </div>
-      ))}
+            {appt.attachments?.length > 0 && (
+              <div className="subBlock">
+                <p className="subBlockLabel">Files from patient</p>
+                <ul className="fileList" style={{ marginTop: 0 }}>
+                  {appt.attachments.map((file, i) => (
+                    <li key={i}>
+                      <a href={file.url} target="_blank" rel="noopener noreferrer">
+                        {file.name}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </main>
   );
 }

@@ -1,6 +1,6 @@
 {
-  "appId": "com.tonbrayerekimea.telemed",
-  "appName": "Telemed",
+  "appId": "com.medaxiswellness.app",
+  "appName": "MedAxis Wellness",
   "webDir": "out",
   "bundledWebRuntime": false
 }

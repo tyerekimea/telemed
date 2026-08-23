@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/useAuth";
+import AppHeader from "../../components/AppHeader";
 
 // roomUrl is created per-appointment at booking time (see createDailyRoom
 // in functions/index.js and handleBookSlot in patient/dashboard/page.js),
@@ -84,7 +85,7 @@ function CallPageInner() {
       if (cancelled) return;
       const frame = DailyIframe.createFrame(containerRef.current, {
         showLeaveButton: true,
-        iframeStyle: { width: "100%", height: "500px", border: "0" },
+        iframeStyle: { width: "100%", height: "500px", border: "0", borderRadius: "14px" },
       });
       frame.join({ url: appointment.roomUrl, startVideoOff: mode === "voice" });
       callFrameRef.current = frame;
@@ -97,35 +98,52 @@ function CallPageInner() {
   }, [appointment, mode]);
 
   if (loading || !user) {
-    return <main style={{ padding: 24 }}>Loading...</main>;
+    return <main className="loadingShell">Loading...</main>;
   }
 
   if (!appointmentId) {
-    return <main style={{ padding: 24 }}>No appointment specified.</main>;
+    return (
+      <main className="shell">
+        <AppHeader backHref="/" />
+        <div className="container">
+          <p className="emptyState">No appointment specified.</p>
+        </div>
+      </main>
+    );
   }
 
   if (error) {
     return (
-      <main style={{ padding: 24 }}>
-        <p>{error}</p>
-        <button onClick={() => router.back()}>Go back</button>
+      <main className="shell">
+        <AppHeader backHref="/" />
+        <div className="container">
+          <p className="errorBox">{error}</p>
+          <button onClick={() => router.back()} className="btnSecondary">
+            Go back
+          </button>
+        </div>
       </main>
     );
   }
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1>{mode === "voice" ? "Voice call" : "Video call"}</h1>
-      <div ref={containerRef} />
+    <main className="shell">
+      <AppHeader />
+      <div className="container">
+        <p className="eyebrow">{mode === "voice" ? "Voice call" : "Video call"}</p>
+        <h1 className="pageTitle" style={{ marginBottom: 20 }}>
+          {mode === "voice" ? "Voice call" : "Video call"}
+        </h1>
+        <div ref={containerRef} />
+      </div>
     </main>
   );
 }
 
 export default function CallPage() {
   return (
-    <Suspense fallback={<main style={{ padding: 24 }}>Loading...</main>}>
+    <Suspense fallback={<main className="loadingShell">Loading...</main>}>
       <CallPageInner />
     </Suspense>
   );
 }
-

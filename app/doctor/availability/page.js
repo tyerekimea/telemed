@@ -6,6 +6,7 @@ import { httpsCallable } from "firebase/functions";
 import { functions } from "../../../lib/firebase";
 import { useAuth } from "../../../lib/useAuth";
 import { useUserProfile } from "../../../lib/useUserProfile";
+import AppHeader from "../../../components/AppHeader";
 
 const setDoctorAvailability = httpsCallable(
   functions,
@@ -164,22 +165,21 @@ export default function DoctorAvailability() {
     (role && role !== "doctor") ||
     (profile && !profile.profileComplete)
   ) {
-    return (
-      <main style={{ padding: 24 }}>
-        Loading...
-      </main>
-    );
+    return <main className="loadingShell">Loading...</main>;
   }
 
   if (profile?.verified === false) {
     return (
-      <main style={{ padding: 24 }}>
-        <h1>Almost there</h1>
-        <p>
-          Your account is pending verification. You'll be able
-          to add availability once an admin approves your
-          account.
-        </p>
+      <main className="shell">
+        <AppHeader backHref="/" />
+        <div className="container">
+          <p className="eyebrow">Doctor dashboard</p>
+          <h1 className="pageTitle">Almost there</h1>
+          <p className="pageSubtext">
+            Your account is pending verification. You'll be able to add
+            availability once an admin approves your account.
+          </p>
+        </div>
       </main>
     );
   }
@@ -187,241 +187,111 @@ export default function DoctorAvailability() {
   const today = getTodayString();
 
   return (
-    <main
-      style={{
-        maxWidth: 700,
-        margin: "0 auto",
-        padding: 24,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 24,
-          gap: 16,
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0 }}>
-            My availability
-          </h1>
-
-          <p style={{ color: "#666", marginTop: 8 }}>
-            Tell patients when you're available for
-            consultations.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => router.push("/doctor/dashboard")}
-        >
-          Dashboard
-        </button>
-      </div>
-
-      <section
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: 12,
-          padding: 20,
-          marginBottom: 24,
-        }}
-      >
-        <h2 style={{ marginTop: 0 }}>
-          Add availability
-        </h2>
-
-        <p style={{ color: "#666" }}>
-          Each consultation is 15 minutes. You can add
-          different availability periods for different days.
+    <main className="shell">
+      <AppHeader
+        backHref="/doctor/dashboard"
+        right={
+          <button onClick={() => router.push("/doctor/dashboard")} className="btnSecondary">
+            Dashboard
+          </button>
+        }
+      />
+      <div className="container">
+        <p className="eyebrow">Doctor dashboard</p>
+        <h1 className="pageTitle">My availability</h1>
+        <p className="pageSubtext">
+          Tell patients when you're available for consultations.
         </p>
 
-        <form onSubmit={handleSaveAvailability}>
-          <div style={{ marginBottom: 16 }}>
-            <label
-              htmlFor="availability-date"
-              style={{
-                display: "block",
-                marginBottom: 6,
-                fontWeight: 600,
-              }}
-            >
-              Date
-            </label>
+        <section className="card" style={{ padding: 24, marginBottom: 20 }}>
+          <p className="cardTitle" style={{ fontSize: 18, marginBottom: 4 }}>
+            Add availability
+          </p>
+          <p className="cardMeta" style={{ marginBottom: 18 }}>
+            Each consultation is 15 minutes. You can add different
+            availability periods for different days.
+          </p>
 
-            <input
-              id="availability-date"
-              type="date"
-              min={today}
-              value={date}
-              onChange={(event) =>
-                setDate(event.target.value)
-              }
-              style={{
-                padding: 10,
-                width: "100%",
-                maxWidth: 320,
-                boxSizing: "border-box",
-              }}
-            />
-
-            {date && (
-              <p
-                style={{
-                  marginTop: 6,
-                  color: "#666",
-                }}
-              >
-                {formatDate(date)}
-              </p>
-            )}
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: 16,
-              marginBottom: 20,
-            }}
-          >
-            <div>
-              <label
-                htmlFor="start-time"
-                style={{
-                  display: "block",
-                  marginBottom: 6,
-                  fontWeight: 600,
-                }}
-              >
-                Available from
+          <form onSubmit={handleSaveAvailability}>
+            <div className="field">
+              <label htmlFor="availability-date" className="label">
+                Date
               </label>
-
               <input
-                id="start-time"
-                type="time"
-                step="900"
-                value={startTime}
-                onChange={(event) =>
-                  setStartTime(event.target.value)
-                }
-                style={{
-                  padding: 10,
-                  width: "100%",
-                  boxSizing: "border-box",
-                }}
+                id="availability-date"
+                type="date"
+                min={today}
+                value={date}
+                onChange={(event) => setDate(event.target.value)}
+                className="input"
+                style={{ maxWidth: 320 }}
               />
+              {date && (
+                <p style={{ marginTop: 8, color: "var(--ink-soft)", fontSize: 14 }}>
+                  {formatDate(date)}
+                </p>
+              )}
             </div>
 
-            <div>
-              <label
-                htmlFor="end-time"
-                style={{
-                  display: "block",
-                  marginBottom: 6,
-                  fontWeight: 600,
-                }}
-              >
-                Available until
-              </label>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: 16,
+                marginBottom: 20,
+              }}
+            >
+              <div>
+                <label htmlFor="start-time" className="label">
+                  Available from
+                </label>
+                <input
+                  id="start-time"
+                  type="time"
+                  step="900"
+                  value={startTime}
+                  onChange={(event) => setStartTime(event.target.value)}
+                  className="input"
+                />
+              </div>
 
-              <input
-                id="end-time"
-                type="time"
-                step="900"
-                value={endTime}
-                onChange={(event) =>
-                  setEndTime(event.target.value)
-                }
-                style={{
-                  padding: 10,
-                  width: "100%",
-                  boxSizing: "border-box",
-                }}
-              />
+              <div>
+                <label htmlFor="end-time" className="label">
+                  Available until
+                </label>
+                <input
+                  id="end-time"
+                  type="time"
+                  step="900"
+                  value={endTime}
+                  onChange={(event) => setEndTime(event.target.value)}
+                  className="input"
+                />
+              </div>
             </div>
-          </div>
 
-          {message && (
-            <p
-              style={{
-                color: "green",
-                background: "#eef9f0",
-                padding: 12,
-                borderRadius: 8,
-              }}
-            >
-              {message}
-            </p>
-          )}
+            {message && <p className="successBox">{message}</p>}
+            {error && <p className="errorBox">{error}</p>}
 
-          {error && (
-            <p
-              style={{
-                color: "#b00020",
-                background: "#fff0f0",
-                padding: 12,
-                borderRadius: 8,
-              }}
-            >
-              {error}
-            </p>
-          )}
+            <button type="submit" disabled={saving} className="btnPrimary">
+              {saving ? "Saving..." : "Save availability"}
+            </button>
+          </form>
+        </section>
 
-          <button
-            type="submit"
-            disabled={saving}
-            style={{
-              padding: "11px 18px",
-              cursor: saving
-                ? "not-allowed"
-                : "pointer",
-            }}
-          >
-            {saving
-              ? "Saving..."
-              : "Save availability"}
-          </button>
-        </form>
-      </section>
-
-      <section
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: 12,
-          padding: 20,
-        }}
-      >
-        <h2 style={{ marginTop: 0 }}>
-          How your availability works
-        </h2>
-
-        <ul>
-          <li>
-            You choose the exact dates and times you are
-            available.
-          </li>
-          <li>
-            The system divides your availability into
-            15-minute consultation slots.
-          </li>
-          <li>
-            You can have availability on completely
-            different days and times.
-          </li>
-          <li>
-            Patients only see available, unbooked slots.
-          </li>
-          <li>
-            A booked slot cannot be overwritten by another
-            availability submission.
-          </li>
-        </ul>
-      </section>
+        <section className="card" style={{ padding: 24 }}>
+          <p className="cardTitle" style={{ fontSize: 18, marginBottom: 10 }}>
+            How your availability works
+          </p>
+          <ul style={{ margin: 0, paddingLeft: 20, color: "var(--ink-soft)", fontSize: 15, lineHeight: 1.7 }}>
+            <li>You choose the exact dates and times you are available.</li>
+            <li>The system divides your availability into 15-minute consultation slots.</li>
+            <li>You can have availability on completely different days and times.</li>
+            <li>Patients only see available, unbooked slots.</li>
+            <li>A booked slot cannot be overwritten by another availability submission.</li>
+          </ul>
+        </section>
+      </div>
     </main>
   );
 }

@@ -8,6 +8,7 @@ import { useAuth } from "../../../../lib/useAuth";
 import { useIsAdmin } from "../../../../lib/useIsAdmin";
 import { useUserProfile } from "../../../../lib/useUserProfile";
 import { printPrescription, printInvestigationRequest } from "../../../../lib/printDocument";
+import AppHeader from "../../../../components/AppHeader";
 
 // "Past" means startTime has already elapsed — see the note in
 // /doctor/dashboard/page.js. Visit notes, prescriptions, and investigation
@@ -169,63 +170,84 @@ export default function PastAppointments() {
     (role && role !== "doctor") ||
     (profile && !profile.profileComplete)
   ) {
-    return <main style={{ padding: 24 }}>Loading...</main>;
+    return <main className="loadingShell">Loading...</main>;
   }
 
   if (profile?.verified === false) {
     return (
-      <main style={{ padding: 24 }}>
-        <h1>Almost there</h1>
-        <p>Your account is pending verification. We'll let you know once an admin approves it.</p>
+      <main className="shell">
+        <AppHeader backHref="/" />
+        <div className="container">
+          <p className="eyebrow">Doctor dashboard</p>
+          <h1 className="pageTitle">Almost there</h1>
+          <p className="pageSubtext">
+            Your account is pending verification. We'll let you know once an admin approves it.
+          </p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>Past appointments</h1>
-        <div style={{ display: "flex", gap: 8 }}>
-          {isAdmin && <button onClick={() => router.push("/admin")}>Admin</button>}
-          <button onClick={() => router.push("/doctor/dashboard")}>Pending appointments</button>
-        </div>
-      </div>
-      {apptsError && <p style={{ color: "red" }}>{apptsError}</p>}
-      {!apptsError && appointments.length === 0 && <p>No past appointments yet.</p>}
-      {appointments.map((appt) => (
-        <div key={appt.id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 12 }}>
-          <p style={{ margin: "0 0 4px" }}>
-            <strong>{appt.patientName || "(name not on file)"}</strong>
-          </p>
-          <p style={{ margin: "0 0 8px", color: "#666" }}>
-            {appt.startTime?.toDate().toLocaleString()}
-          </p>
-          <div>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 14, color: "#666" }}>
-              Visit notes
-            </label>
-            <textarea
-              value={draftNotes[appt.id] ?? ""}
-              onChange={(e) =>
-                setDraftNotes((prev) => ({ ...prev, [appt.id]: e.target.value }))
-              }
-              rows={3}
-              style={{ width: "100%", maxWidth: 400, display: "block", marginBottom: 8 }}
-              placeholder="Diagnosis, prescription, follow-up..."
-            />
+    <main className="shell">
+      <AppHeader
+        backHref="/doctor/dashboard"
+        right={
+          <>
+            {isAdmin && (
+              <button onClick={() => router.push("/admin")} className="btnSecondary">
+                Admin
+              </button>
+            )}
             <button
-              onClick={() => handleSaveNotes(appt.id)}
-              disabled={savingId === `notes:${appt.id}`}
+              onClick={() => router.push("/doctor/dashboard")}
+              className="btnSecondary"
             >
-              {savingId === `notes:${appt.id}` ? "Saving..." : "Save notes"}
+              Pending appointments
             </button>
-          </div>
+          </>
+        }
+      />
+      <div className="container">
+        <p className="eyebrow">Doctor dashboard</p>
+        <h1 className="pageTitle" style={{ marginBottom: 24 }}>
+          Past appointments
+        </h1>
+        {apptsError && <p className="errorBox">{apptsError}</p>}
+        {!apptsError && appointments.length === 0 && (
+          <p className="emptyState">No past appointments yet.</p>
+        )}
+        {appointments.map((appt) => (
+          <div key={appt.id} className="card">
+            <p className="cardTitle">{appt.patientName || "(name not on file)"}</p>
+            <p className="cardMeta">{appt.startTime?.toDate().toLocaleString()}</p>
 
-          <div style={{ marginTop: 20, borderTop: "1px solid #eee", paddingTop: 16 }}>
-            <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>Prescription</h3>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 14, color: "#666" }}>
-              Diagnosis
-            </label>
+            <div>
+              <label className="labelMuted">Visit notes</label>
+              <textarea
+                value={draftNotes[appt.id] ?? ""}
+                onChange={(e) =>
+                  setDraftNotes((prev) => ({ ...prev, [appt.id]: e.target.value }))
+                }
+                rows={3}
+                className="textarea"
+                style={{ maxWidth: 460, marginBottom: 10 }}
+                placeholder="Diagnosis, prescription, follow-up..."
+              />
+              <button
+                onClick={() => handleSaveNotes(appt.id)}
+                disabled={savingId === `notes:${appt.id}`}
+                className="btnSecondary"
+              >
+                {savingId === `notes:${appt.id}` ? "Saving..." : "Save notes"}
+              </button>
+            </div>
+
+            <hr className="divider" />
+            <p className="cardTitle" style={{ fontSize: 16, marginBottom: 10 }}>
+              Prescription
+            </p>
+            <label className="labelMuted">Diagnosis</label>
             <input
               type="text"
               value={draftPrescription[appt.id]?.diagnosis ?? ""}
@@ -235,10 +257,11 @@ export default function PastAppointments() {
                   [appt.id]: { ...prev[appt.id], diagnosis: e.target.value },
                 }))
               }
-              style={{ width: "100%", maxWidth: 400, display: "block", marginBottom: 8 }}
+              className="input"
+              style={{ maxWidth: 460, marginBottom: 10 }}
               placeholder="e.g. Malaria (uncomplicated)"
             />
-            <label style={{ display: "block", marginBottom: 4, fontSize: 14, color: "#666" }}>
+            <label className="labelMuted">
               Medications (drug, dose, frequency, duration)
             </label>
             <textarea
@@ -250,13 +273,15 @@ export default function PastAppointments() {
                 }))
               }
               rows={4}
-              style={{ width: "100%", maxWidth: 400, display: "block", marginBottom: 8 }}
+              className="textarea"
+              style={{ maxWidth: 460, marginBottom: 10 }}
               placeholder={"e.g.\nArtemether/Lumefantrine 80/480mg — 1 tab twice daily for 3 days\nParacetamol 500mg — 1-2 tabs every 6 hours as needed for fever"}
             />
-            <div style={{ display: "flex", gap: 8 }}>
+            <div className="rowGap">
               <button
                 onClick={() => handleSavePrescription(appt.id)}
                 disabled={savingId === `prescription:${appt.id}`}
+                className="btnSecondary"
               >
                 {savingId === `prescription:${appt.id}` ? "Saving..." : "Save prescription"}
               </button>
@@ -268,16 +293,18 @@ export default function PastAppointments() {
                       patientName: appt.patientName,
                     })
                   }
+                  className="btnGhost"
                 >
                   Print
                 </button>
               )}
             </div>
-          </div>
 
-          <div style={{ marginTop: 20, borderTop: "1px solid #eee", paddingTop: 16 }}>
-            <h3 style={{ margin: "0 0 8px", fontSize: 16 }}>Investigation request</h3>
-            <label style={{ display: "block", marginBottom: 4, fontSize: 14, color: "#666" }}>
+            <hr className="divider" />
+            <p className="cardTitle" style={{ fontSize: 16, marginBottom: 10 }}>
+              Investigation request
+            </p>
+            <label className="labelMuted">
               Clinical notes / provisional diagnosis
             </label>
             <textarea
@@ -289,12 +316,11 @@ export default function PastAppointments() {
                 }))
               }
               rows={2}
-              style={{ width: "100%", maxWidth: 400, display: "block", marginBottom: 8 }}
+              className="textarea"
+              style={{ maxWidth: 460, marginBottom: 10 }}
               placeholder="Brief clinical picture to help the lab interpret results"
             />
-            <label style={{ display: "block", marginBottom: 4, fontSize: 14, color: "#666" }}>
-              Tests requested
-            </label>
+            <label className="labelMuted">Tests requested</label>
             <textarea
               value={draftInvestigation[appt.id]?.testsRequested ?? ""}
               onChange={(e) =>
@@ -304,12 +330,11 @@ export default function PastAppointments() {
                 }))
               }
               rows={3}
-              style={{ width: "100%", maxWidth: 400, display: "block", marginBottom: 8 }}
+              className="textarea"
+              style={{ maxWidth: 460, marginBottom: 10 }}
               placeholder={"e.g.\nFull Blood Count\nMalaria parasite (RDT/microscopy)\nRandom blood sugar"}
             />
-            <label style={{ display: "block", marginBottom: 4, fontSize: 14, color: "#666" }}>
-              Urgency
-            </label>
+            <label className="labelMuted">Urgency</label>
             <select
               value={draftInvestigation[appt.id]?.urgency ?? "routine"}
               onChange={(e) =>
@@ -318,17 +343,21 @@ export default function PastAppointments() {
                   [appt.id]: { ...prev[appt.id], urgency: e.target.value },
                 }))
               }
-              style={{ display: "block", marginBottom: 8 }}
+              className="select"
+              style={{ maxWidth: 220, marginBottom: 10 }}
             >
               <option value="routine">Routine</option>
               <option value="urgent">Urgent</option>
             </select>
-            <div style={{ display: "flex", gap: 8 }}>
+            <div className="rowGap">
               <button
                 onClick={() => handleSaveInvestigation(appt.id)}
                 disabled={savingId === `investigation:${appt.id}`}
+                className="btnSecondary"
               >
-                {savingId === `investigation:${appt.id}` ? "Saving..." : "Save investigation request"}
+                {savingId === `investigation:${appt.id}`
+                  ? "Saving..."
+                  : "Save investigation request"}
               </button>
               {appt.investigationRequest?.testsRequested && (
                 <button
@@ -338,14 +367,15 @@ export default function PastAppointments() {
                       patientName: appt.patientName,
                     })
                   }
+                  className="btnGhost"
                 >
                   Print
                 </button>
               )}
             </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </main>
   );
 }

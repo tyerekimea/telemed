@@ -14,6 +14,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "../../lib/firebase";
+import AppHeader from "../../components/AppHeader";
 
 // Login / signup page.
 //
@@ -244,96 +245,70 @@ export default function LoginPage() {
    */
   if (mode === "reset") {
     return (
-      <main
-        style={{
-          padding: 24,
-          maxWidth: 360,
-          margin: "0 auto",
-        }}
-      >
-        <h1>Reset password</h1>
+      <main className="shell">
+        <AppHeader backHref="/" />
+        <div className="narrowContainer">
+          <p className="eyebrow">Account</p>
+          <h1 className="pageTitle">Reset password</h1>
 
-        {resetSent ? (
-          <>
-            <p>
-              If an account exists for{" "}
-              <strong>{email}</strong>, a reset link has been
-              sent. Check your inbox and spam folder.
-            </p>
-
-            <button
-              onClick={() => {
-                setMode("login");
-                setResetSent(false);
-                setError("");
-              }}
-              style={{
-                background: "none",
-                border: "none",
-                textDecoration: "underline",
-                cursor: "pointer",
-              }}
-            >
-              Back to login
-            </button>
-          </>
-        ) : (
-          <>
-            <p style={{ color: "#666" }}>
-              Enter your email and we'll send you a link to
-              reset your password.
-            </p>
-
-            <form
-              onSubmit={handleReset}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
-              }}
-            >
-              <input
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-              />
-
-              {error && (
-                <p style={{ color: "red" }}>
-                  {error}
-                </p>
-              )}
+          {resetSent ? (
+            <>
+              <p className="pageSubtext">
+                If an account exists for <strong>{email}</strong>, a reset
+                link has been sent. Check your inbox and spam folder.
+              </p>
 
               <button
-                type="submit"
-                disabled={loading}
+                onClick={() => {
+                  setMode("login");
+                  setResetSent(false);
+                  setError("");
+                }}
+                className="btnGhost"
               >
-                {loading
-                  ? "Sending..."
-                  : "Send reset link"}
+                Back to login
               </button>
-            </form>
+            </>
+          ) : (
+            <>
+              <p className="pageSubtext">
+                Enter your email and we'll send you a link to reset your
+                password.
+              </p>
 
-            <button
-              onClick={() => {
-                setMode("login");
-                setError("");
-              }}
-              style={{
-                marginTop: 12,
-                background: "none",
-                border: "none",
-                textDecoration: "underline",
-                cursor: "pointer",
-              }}
-            >
-              Back to login
-            </button>
-          </>
-        )}
+              <form onSubmit={handleReset} className="formShell">
+                <div className="field">
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={loading}
+                    className="input"
+                  />
+                </div>
+
+                {error && <p className="errorBox">{error}</p>}
+
+                <button type="submit" disabled={loading} className="btnPrimary">
+                  {loading ? "Sending..." : "Send reset link"}
+                </button>
+              </form>
+
+              <button
+                onClick={() => {
+                  setMode("login");
+                  setError("");
+                }}
+                className="btnGhost"
+                style={{ marginTop: 16 }}
+              >
+                Back to login
+              </button>
+            </>
+          )}
+        </div>
       </main>
     );
   }
@@ -344,120 +319,95 @@ export default function LoginPage() {
    * ================================================================
    */
   return (
-    <main
-      style={{
-        padding: 24,
-        maxWidth: 360,
-        margin: "0 auto",
-      }}
-    >
-      <h1>
-        {mode === "signup"
-          ? "Create account"
-          : "Log in"}
-      </h1>
+    <main className="shell">
+      <AppHeader backHref="/" />
+      <div className="narrowContainer">
+        <p className="eyebrow">Account</p>
+        <h1 className="pageTitle">
+          {mode === "signup" ? "Create account" : "Log in"}
+        </h1>
+        <p className="pageSubtext">
+          {mode === "signup"
+            ? "Set up your account to book or offer consultations."
+            : "Welcome back — sign in to continue."}
+        </p>
 
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-        }}
-      >
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          disabled={loading}
-        />
+        <form onSubmit={handleSubmit} className="formShell">
+          <div className="field">
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+              className="input"
+            />
+          </div>
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          disabled={loading}
-        />
+          <div className="field">
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={loading}
+              className="input"
+            />
+          </div>
 
-        {mode === "signup" && (
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            disabled={loading}
+          {mode === "signup" && (
+            <div className="field">
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                disabled={loading}
+                className="select"
+              >
+                <option value="patient">I'm a patient</option>
+                <option value="doctor">I'm a doctor</option>
+              </select>
+            </div>
+          )}
+
+          {error && <p className="errorBox">{error}</p>}
+
+          <button type="submit" disabled={loading} className="btnPrimary">
+            {loading
+              ? "Please wait..."
+              : mode === "signup"
+              ? "Sign up"
+              : "Log in"}
+          </button>
+        </form>
+
+        {mode === "login" && (
+          <button
+            onClick={() => {
+              setMode("reset");
+              setError("");
+            }}
+            className="btnGhost"
+            style={{ marginTop: 14, display: "block" }}
           >
-            <option value="patient">
-              I'm a patient
-            </option>
-
-            <option value="doctor">
-              I'm a doctor
-            </option>
-          </select>
+            Forgot password?
+          </button>
         )}
 
-        {error && (
-          <p style={{ color: "red" }}>
-            {error}
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading}
-        >
-          {loading
-            ? "Please wait..."
-            : mode === "signup"
-            ? "Sign up"
-            : "Log in"}
-        </button>
-      </form>
-
-      {mode === "login" && (
         <button
           onClick={() => {
-            setMode("reset");
+            setMode(mode === "signup" ? "login" : "signup");
             setError("");
           }}
-          style={{
-            marginTop: 8,
-            background: "none",
-            border: "none",
-            textDecoration: "underline",
-            display: "block",
-            cursor: "pointer",
-          }}
+          className="btnGhost"
+          style={{ marginTop: 12, display: "block" }}
         >
-          Forgot password?
+          {mode === "signup"
+            ? "Already have an account? Log in"
+            : "New here? Sign up"}
         </button>
-      )}
-
-      <button
-        onClick={() => {
-          setMode(
-            mode === "signup"
-              ? "login"
-              : "signup"
-          );
-          setError("");
-        }}
-        style={{
-          marginTop: 12,
-          background: "none",
-          border: "none",
-          textDecoration: "underline",
-          cursor: "pointer",
-        }}
-      >
-        {mode === "signup"
-          ? "Already have an account? Log in"
-          : "New here? Sign up"}
-      </button>
+      </div>
     </main>
   );
 }
-

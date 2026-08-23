@@ -6,6 +6,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
 import { useAuth } from "../../../lib/useAuth";
 import { useUserProfile } from "../../../lib/useUserProfile";
+import AppHeader from "../../../components/AppHeader";
 
 // Required before a patient can book — see the profileComplete check in
 // patient/dashboard and patient/appointments. Also editable anytime after,
@@ -70,76 +71,80 @@ export default function PatientProfileForm() {
   }
 
   if (loading || loadingProfile || !user || (role && role !== "patient")) {
-    return <main style={{ padding: 24 }}>Loading...</main>;
+    return <main className="loadingShell">Loading...</main>;
   }
 
   return (
-    <main style={{ padding: 24, maxWidth: 400, margin: "0 auto" }}>
-      <h1>Complete your profile</h1>
-      <p style={{ color: "#666" }}>
-        We need a few details before you can book an appointment.
-      </p>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <label>
-          First name
-          <input
-            type="text"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            style={{ display: "block", width: "100%" }}
-            required
-          />
-        </label>
-        <label>
-          Last name
-          <input
-            type="text"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            style={{ display: "block", width: "100%" }}
-            required
-          />
-        </label>
-        <label>
-          Date of birth
-          <input
-            type="date"
-            value={dob}
-            onChange={(e) => setDob(e.target.value)}
-            style={{ display: "block", width: "100%" }}
-            required
-          />
-        </label>
-        <label>
-          Phone number
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            style={{ display: "block", width: "100%" }}
-            required
-          />
-        </label>
-        <label>
-          Gender
-          <select
-            value={gender}
-            onChange={(e) => setGender(e.target.value)}
-            style={{ display: "block", width: "100%" }}
-            required
-          >
-            <option value="">Select...</option>
-            <option value="female">Female</option>
-            <option value="male">Male</option>
-            <option value="other">Other</option>
-            <option value="prefer_not_to_say">Prefer not to say</option>
-          </select>
-        </label>
-        {error && <p style={{ color: "red" }}>{error}</p>}
-        <button type="submit" disabled={saving}>
-          {saving ? "Saving..." : "Save and continue"}
-        </button>
-      </form>
+    <main className="shell">
+      <AppHeader backHref="/patient/dashboard" />
+      <div className="narrowContainer">
+        <p className="eyebrow">Patient profile</p>
+        <h1 className="pageTitle">Complete your profile</h1>
+        <p className="pageSubtext">
+          We need a few details before you can book an appointment.
+        </p>
+        <form onSubmit={handleSubmit} className="formShell">
+          <div className="field">
+            <label className="label">First name</label>
+            <input
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="input"
+              required
+            />
+          </div>
+          <div className="field">
+            <label className="label">Last name</label>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="input"
+              required
+            />
+          </div>
+          <div className="field">
+            <label className="label">Date of birth</label>
+            <input
+              type="date"
+              value={dob}
+              onChange={(e) => setDob(e.target.value)}
+              className="input"
+              required
+            />
+          </div>
+          <div className="field">
+            <label className="label">Phone number</label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="input"
+              required
+            />
+          </div>
+          <div className="field">
+            <label className="label">Gender</label>
+            <select
+              value={gender}
+              onChange={(e) => setGender(e.target.value)}
+              className="select"
+              required
+            >
+              <option value="">Select...</option>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+              <option value="other">Other</option>
+              <option value="prefer_not_to_say">Prefer not to say</option>
+            </select>
+          </div>
+          {error && <p className="errorBox">{error}</p>}
+          <button type="submit" disabled={saving} className="btnPrimary">
+            {saving ? "Saving..." : "Save and continue"}
+          </button>
+        </form>
+      </div>
     </main>
   );
 }

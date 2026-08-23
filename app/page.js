@@ -1,7 +1,7 @@
 import Link from "next/link";
 import styles from "./page.module.css";
 export const metadata = {
-  title: "Telemed — See a doctor without the road, the queue, or the wait",
+  title: "MedAxis Wellness — See a doctor without the road, the queue, or the wait",
   description:
     "Book verified doctors for video, voice, or chat consultations. Share photos and lab results, get prescriptions and investigation requests you can print.",
 };
@@ -10,7 +10,7 @@ export default function Home() {
   return (
     <main className={styles.page}>
       <header className={styles.header}>
-        <span className={styles.wordmark}>Telemed</span>
+        <span className={styles.wordmark}>MedAxis Wellness</span>
         <Link href="/login" className={styles.headerLink}>
           Log in
         </Link>
@@ -34,7 +34,7 @@ export default function Home() {
               Find a doctor
             </Link>
             <Link href="/login" className={styles.secondaryCta}>
-              I'm a doctor — join Telemed
+              I'm a doctor — join MedAxis Wellness
             </Link>
           </div>
         </div>
@@ -74,7 +74,7 @@ export default function Home() {
       </section>
 
       <footer className={styles.footer}>
-        <span className={styles.wordmark}>Telemed</span>
+        <span className={styles.wordmark}>MedAxis Wellness</span>
         <p>Built for Nigeria and West Africa.</p>
       </footer>
     </main>
