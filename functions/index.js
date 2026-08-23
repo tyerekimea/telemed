@@ -20,6 +20,12 @@ const db = getFirestore();
 const dailyApiKey = defineSecret("DAILY_API_KEY");
 
 const CONSULTATION_MINUTES = 15;
+// Gap enforced between the end of one slot and the start of the next,
+// so a doctor running slightly over on one consultation (or just needing
+// a breather) has room before the next patient's slot begins — without
+// this, back-to-back 15-minute slots gave doctors zero buffer, which was
+// a real source of doctors joining late for the next patient.
+const BREAK_MINUTES = 10;
 const MAX_AVAILABILITY_HOURS = 12;
 
 function validateDocumentId(value, fieldName) {
@@ -287,15 +293,21 @@ async function createDoctorAvailability(request) {
   let created = 0;
   let skipped = 0;
 
+  const slotMillis = CONSULTATION_MINUTES * 60 * 1000;
+  const stepMillis = (CONSULTATION_MINUTES + BREAK_MINUTES) * 60 * 1000;
+
+  // Loop bound is "does this slot fit before the window closes" rather
+  // than "has the cursor passed the window", so a trailing period too
+  // short for a full slot (e.g. the last few minutes before endTime) is
+  // simply left unused rather than creating a slot that runs past the
+  // time the doctor actually said they're available until.
   for (
     let cursor = startDate.getTime();
-    cursor < endDate.getTime();
-    cursor += CONSULTATION_MINUTES * 60 * 1000
+    cursor + slotMillis <= endDate.getTime();
+    cursor += stepMillis
   ) {
     const slotStart = new Date(cursor);
-    const slotEnd = new Date(
-      cursor + CONSULTATION_MINUTES * 60 * 1000
-    );
+    const slotEnd = new Date(cursor + slotMillis);
 
     const existing = existingByMillis.get(cursor);
 
@@ -330,6 +342,7 @@ async function createDoctorAvailability(request) {
     startTime,
     endTime,
     consultationMinutes: CONSULTATION_MINUTES,
+    breakMinutes: BREAK_MINUTES,
   };
 }
 

@@ -208,7 +208,8 @@ export default function DoctorAvailability() {
             Add availability
           </p>
           <p className="cardMeta" style={{ marginBottom: 18 }}>
-            Each consultation is 15 minutes. You can add different
+            Each consultation is 15 minutes, with a 10-minute break built in
+            afterward. You can add different
             availability periods for different days.
           </p>
 
@@ -285,7 +286,7 @@ export default function DoctorAvailability() {
           </p>
           <ul style={{ margin: 0, paddingLeft: 20, color: "var(--ink-soft)", fontSize: 15, lineHeight: 1.7 }}>
             <li>You choose the exact dates and times you are available.</li>
-            <li>The system divides your availability into 15-minute consultation slots.</li>
+            <li>The system divides your availability into 15-minute consultation slots, with a 10-minute break automatically added after each one.</li>
             <li>You can have availability on completely different days and times.</li>
             <li>Patients only see available, unbooked slots.</li>
             <li>A booked slot cannot be overwritten by another availability submission.</li>
