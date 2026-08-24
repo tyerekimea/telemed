@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "cap:sync": "next build && npx cap sync"
+    "cap:sync": "next build && npx cap sync",
+    "build:android-apk": "npm run cap:sync && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
     "@daily-co/daily-js": "^0.65.0",
