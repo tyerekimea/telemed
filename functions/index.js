@@ -366,7 +366,12 @@ async function createDailyRoomForStartTime(startTime) {
         privacy: "public",
         properties: {
           exp: expSeconds,
-          enable_chat: true,
+          // Daily's own chat panel is disabled — the app now provides its
+          // own chat (appointments/{id}/messages in Firestore), rendered
+          // alongside the call in app/call/page.js. Turning it off here at
+          // the room level, rather than trying to hide it client-side, is
+          // what actually removes it from Daily's prebuilt UI.
+          enable_chat: false,
           max_participants: 2,
         },
       }),

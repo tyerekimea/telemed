@@ -82,6 +82,28 @@ service cloud.firestore {
             || (resource.data.patientId == request.auth.uid
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["attachments"])));
       allow delete: if false;
+
+      // Per-appointment chat, replacing Daily's built-in in-call chat (see
+      // enable_chat: false in functions/index.js) — same access boundary
+      // as the appointment and the call itself: only the patient or
+      // doctor on this appointment. Messages are immutable once sent —
+      // no edit, no delete — keeping this simple rather than building out
+      // message moderation/edit history.
+      match /messages/{messageId} {
+        allow read: if request.auth != null
+          && (get(/databases/$(database)/documents/appointments/$(appointmentId)).data.patientId == request.auth.uid
+              || get(/databases/$(database)/documents/appointments/$(appointmentId)).data.doctorId == request.auth.uid);
+        allow create: if request.auth != null
+          && (get(/databases/$(database)/documents/appointments/$(appointmentId)).data.patientId == request.auth.uid
+              || get(/databases/$(database)/documents/appointments/$(appointmentId)).data.doctorId == request.auth.uid)
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.sentAt == request.time
+          && request.resource.data.keys().hasOnly(["senderId", "text", "sentAt"]);
+        allow update, delete: if false;
+      }
     }
   }
 }

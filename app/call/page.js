@@ -6,6 +6,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/useAuth";
 import AppHeader from "../../components/AppHeader";
+import ChatPanel from "../../components/ChatPanel";
 
 // roomUrl is created per-appointment at booking time (see createDailyRoom
 // in functions/index.js and handleBookSlot in patient/dashboard/page.js),
@@ -26,9 +27,12 @@ import AppHeader from "../../components/AppHeader";
 // <Suspense> boundary when the page is statically prerendered, or the build
 // fails — hence the split into an inner component wrapped below.
 //
-// Chat: Daily's prebuilt call UI includes an in-call chat panel by default —
-// nothing to build here, just make sure "Chat" is left enabled in the room's
-// settings in the Daily.co dashboard (it is by default).
+// Chat: Daily's own in-call chat panel is disabled at room creation
+// (enable_chat: false in functions/index.js). Chat is instead our own —
+// see components/ChatPanel.js, backed by Firestore under
+// appointments/{appointmentId}/messages, scoped to the same two people
+// who can access the appointment and the call itself. Rendered alongside
+// the video frame below.
 //
 // Voice vs video: both use the exact same Daily room and call frame — the
 // only difference is whether the camera starts on or off, controlled by
@@ -134,7 +138,28 @@ function CallPageInner() {
         <h1 className="pageTitle" style={{ marginBottom: 20 }}>
           {mode === "voice" ? "Voice call" : "Video call"}
         </h1>
-        <div ref={containerRef} />
+        <div
+          style={{
+            display: "flex",
+            gap: 20,
+            flexWrap: "wrap",
+            alignItems: "flex-start",
+          }}
+        >
+          <div ref={containerRef} style={{ flex: "2 1 480px", minWidth: 280 }} />
+          <div style={{ flex: "1 1 300px", minWidth: 280 }}>
+            <ChatPanel
+              appointmentId={appointmentId}
+              currentUserId={user.uid}
+              otherPartyName={
+                appointment &&
+                (user.uid === appointment.patientId
+                  ? appointment.doctorName
+                  : appointment.patientName)
+              }
+            />
+          </div>
+        </div>
       </div>
     </main>
   );
