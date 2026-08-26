@@ -21,6 +21,7 @@
     "@capacitor/cli": "^6.0.0",
     "@capacitor/core": "^6.0.0",
     "@capacitor/ios": "^6.0.0",
+    "@firebase/rules-unit-testing": "^3.0.4",
     "firebase-admin": "^12.1.0"
   }
 }
