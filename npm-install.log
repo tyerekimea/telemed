@@ -1,0 +1,64 @@
+npm verbose cli /home/yerekimea/.nvm/versions/node/v22.22.2/bin/node /home/yerekimea/.nvm/versions/node/v22.22.2/bin/npm
+npm info using npm@10.9.7
+npm info using node@v22.22.2
+npm verbose title npm install
+npm verbose argv "install" "--loglevel" "verbose"
+npm verbose logfile logs-max:10 dir:/home/yerekimea/.npm/_logs/2026-08-26T06_38_57_777Z-
+npm verbose logfile /home/yerekimea/.npm/_logs/2026-08-26T06_38_57_777Z-debug-0.log
+npm verbose shrinkwrap failed to load node_modules/.package-lock.json out of date, updated: node_modules/@firebase
+npm verbose reify failed optional dependency /home/yerekimea/Desktop/programme_files/telemed/node_modules/@next/swc-win32-x64-msvc
+npm verbose reify failed optional dependency /home/yerekimea/Desktop/programme_files/telemed/node_modules/@next/swc-win32-ia32-msvc
+npm verbose reify failed optional dependency /home/yerekimea/Desktop/programme_files/telemed/node_modules/@next/swc-win32-arm64-msvc
+npm verbose reify failed optional dependency /home/yerekimea/Desktop/programme_files/telemed/node_modules/@next/swc-linux-arm64-musl
+npm verbose reify failed optional dependency /home/yerekimea/Desktop/programme_files/telemed/node_modules/@next/swc-linux-arm64-gnu
+npm verbose reify failed optional dependency /home/yerekimea/Desktop/programme_files/telemed/node_modules/@next/swc-darwin-arm64
+npm verbose reify failed optional dependency /home/yerekimea/Desktop/programme_files/telemed/node_modules/@next/swc-darwin-x64
+npm http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 1294ms
+npm http fetch GET 200 https://registry.npmjs.org/postcss 308ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/undici 1183ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/nanoid 1252ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/uuid 1265ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/tar 1373ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/next 1507ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/firebase-admin 223ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/google-gax 234ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/teeny-request 253ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/gaxios 257ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@capacitor%2fcli 234ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@firebase%2fauth 288ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@firebase%2fauth-compat 427ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@firebase%2ffunctions 483ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@firebase%2fstorage 660ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@firebase%2ffirestore 795ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@google-cloud%2ffirestore 5218ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/retry-request 219ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@google-cloud%2fstorage 265ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/gtoken 253ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/google-auth-library 259ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/gcp-metadata 266ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/firebase 314ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@firebase%2ffunctions-compat 668ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@firebase%2fstorage-compat 2823ms (cache updated)
+npm http fetch GET 200 https://registry.npmjs.org/@firebase%2ffirestore-compat 343ms (cache revalidated)
+npm http fetch GET 200 https://registry.npmjs.org/@firebase%2frules-unit-testing 518ms (cache revalidated)
+
+changed 7 packages, and audited 329 packages in 1m
+
+35 packages are looking for funding
+  run `npm fund` for details
+
+23 vulnerabilities (17 moderate, 4 high, 2 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+npm verbose cwd /home/yerekimea/Desktop/programme_files/telemed
+npm verbose os Linux 6.17.0-23-generic
+npm verbose node v22.22.2
+npm verbose npm  v10.9.7
+npm verbose exit 0
+npm info ok
