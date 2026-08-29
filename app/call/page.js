@@ -5,8 +5,10 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useAuth } from "../../lib/useAuth";
+import { useUserProfile } from "../../lib/useUserProfile";
 import AppHeader from "../../components/AppHeader";
 import ChatPanel from "../../components/ChatPanel";
+import ConsultationForms from "../../components/ConsultationForms";
 
 // roomUrl is created per-appointment at booking time (see createDailyRoom
 // in functions/index.js and handleBookSlot in patient/dashboard/page.js),
@@ -34,6 +36,14 @@ import ChatPanel from "../../components/ChatPanel";
 // who can access the appointment and the call itself. Rendered alongside
 // the video frame below.
 //
+// Consultation forms: visit notes, prescription, and investigation
+// request (see components/ConsultationForms.js, shared with the same
+// forms on /doctor/dashboard/past) are rendered here too, doctor-only,
+// so a doctor can document a consultation as it happens rather than
+// having to wait until the appointment moves to Past appointments after
+// the fact. Each field still saves independently and immediately, same
+// as before.
+//
 // Voice vs video: both use the exact same Daily room and call frame — the
 // only difference is whether the camera starts on or off, controlled by
 // ?mode=voice in the URL. Either party can still toggle their own camera
@@ -41,6 +51,7 @@ import ChatPanel from "../../components/ChatPanel";
 
 function CallPageInner() {
   const { user, loading } = useAuth();
+  const { profile } = useUserProfile(user);
   const router = useRouter();
   const searchParams = useSearchParams();
   const appointmentId = searchParams.get("appointmentId");
@@ -80,6 +91,10 @@ function CallPageInner() {
     }
     loadAppointment();
   }, [user, appointmentId]);
+
+  function handleSaved(field, value) {
+    setAppointment((prev) => (prev ? { ...prev, [field]: value } : prev));
+  }
 
   useEffect(() => {
     if (!appointment || !containerRef.current) return;
@@ -160,6 +175,23 @@ function CallPageInner() {
             />
           </div>
         </div>
+
+        {appointment && user.uid === appointment.doctorId && (
+          <div className="card" style={{ marginTop: 20 }}>
+            <p className="cardTitle" style={{ marginBottom: 4 }}>
+              Consultation notes
+            </p>
+            <p className="cardMeta" style={{ marginBottom: 16 }}>
+              Document as you go — each field saves on its own, no need to
+              fill in everything before saving.
+            </p>
+            <ConsultationForms
+              appointment={{ ...appointment, id: appointmentId }}
+              doctorProfile={profile}
+              onSaved={handleSaved}
+            />
+          </div>
+        )}
       </div>
     </main>
   );
