@@ -8,6 +8,7 @@ import { useAuth } from "../../../lib/useAuth";
 import { useIsAdmin } from "../../../lib/useIsAdmin";
 import { useUserProfile } from "../../../lib/useUserProfile";
 import AppHeader from "../../../components/AppHeader";
+import { enableNotifications } from "../../../lib/notifications";
 
 // Doctor documents use the doctor's Firebase Auth uid as their document ID
 // (see README — when adding a doctor manually in Firestore, set the
@@ -26,6 +27,7 @@ export default function DoctorDashboard() {
   const router = useRouter();
   const [appointments, setAppointments] = useState([]);
   const [apptsError, setApptsError] = useState("");
+  const [notifStatus, setNotifStatus] = useState(""); // "" | "enabling" | "enabled" | "error"
 
   useEffect(() => {
     if (loading) return;
@@ -63,6 +65,12 @@ export default function DoctorDashboard() {
     }
     loadAppointments();
   }, [user]);
+
+  async function handleEnableNotifications() {
+    setNotifStatus("enabling");
+    const result = await enableNotifications(user);
+    setNotifStatus(result.ok ? "enabled" : `error:${result.reason}`);
+  }
 
   if (
     loading ||
@@ -120,6 +128,44 @@ export default function DoctorDashboard() {
         <h1 className="pageTitle" style={{ marginBottom: 24 }}>
           Pending appointments
         </h1>
+        {!(Array.isArray(profile?.fcmTokens) && profile.fcmTokens.length > 0) &&
+          notifStatus !== "enabled" && (
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  flexWrap: "wrap",
+                }}
+              >
+                <p style={{ margin: 0, fontSize: 14 }}>
+                  Get notified on this device when a patient books you.
+                </p>
+                <button
+                  onClick={handleEnableNotifications}
+                  disabled={notifStatus === "enabling"}
+                  className="btnSecondary"
+                >
+                  {notifStatus === "enabling" ? "Enabling..." : "Enable notifications"}
+                </button>
+              </div>
+              {notifStatus.startsWith("error") && (
+                <p className="errorBox" style={{ marginTop: 12, marginBottom: 0 }}>
+                  {notifStatus === "error:permission-denied" &&
+                    "Notifications were blocked. You can allow them from your browser or device settings."}
+                  {notifStatus === "error:unsupported" &&
+                    "Notifications aren't supported on this browser."}
+                  {notifStatus === "error:not-configured" &&
+                    "Notifications aren't fully set up for this app yet."}
+                  {!["error:permission-denied", "error:unsupported", "error:not-configured"].includes(
+                    notifStatus
+                  ) && "Couldn't enable notifications. Please try again."}
+                </p>
+              )}
+            </div>
+          )}
         {apptsError && <p className="errorBox">{apptsError}</p>}
         {!apptsError && appointments.length === 0 && (
           <p className="emptyState">No upcoming appointments.</p>

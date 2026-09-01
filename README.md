@@ -42,6 +42,9 @@ users/{uid}
   # patient profile fields: firstName, lastName, dob, phone, gender
   # doctor profile fields:  firstName, lastName, specialty, phone,
   #                         licenseNumber (medical registration/MDCN no.)
+  fcmTokens: string[]     — push notification device/browser tokens,
+                            registered via lib/notifications.js, used by
+                            sendBookingNotification in functions/index.js
 
 doctors/{uid}              — public listing, uid = the doctor's own Auth uid
   name, specialty, verified: true
@@ -224,6 +227,45 @@ npx cap add ios          # requires a Mac with Xcode
 npx cap sync
 npx cap open android      # or: npx cap open ios
 ```
+
+## Push notifications setup
+
+Doctors get a push notification when a patient books them (see
+`sendBookingNotification` in `functions/index.js`). Web and mobile use
+different registration mechanisms (see `lib/notifications.js`), and both
+need a one-time manual setup in the Firebase Console before either will
+actually deliver anything — none of this can be scripted, since it needs
+your own console access:
+
+1. **Web push (browser notifications):**
+   - Firebase Console → Project Settings → Cloud Messaging → Web Push
+     certificates → generate a key pair.
+   - Add that key to `.env.local` as `NEXT_PUBLIC_FIREBASE_VAPID_KEY`.
+   - Fill in the six placeholder values at the top of
+     `public/firebase-messaging-sw.js` with the same values as your
+     `.env.local` (`NEXT_PUBLIC_FIREBASE_*`) — this file can't read
+     `.env.local` itself, since it's a plain static file, not something
+     Next.js's build processes.
+2. **Mobile push (the Android app):**
+   - Firebase Console → Project Settings → Add app → Android, using
+     package name `com.medaxiswellness.app` (if not already registered).
+   - Download the resulting `google-services.json` and place it at
+     `android/app/google-services.json` — Capacitor's Android template
+     already has the Gradle plugin wired up to pick this up automatically
+     once the file exists (see `android/app/build.gradle`).
+   - Run `npx cap sync` afterward so the newly added
+     `@capacitor/push-notifications` plugin gets pulled into the native
+     project.
+3. **Enabling it as a doctor:** once both of the above are done, a
+   verified doctor sees an "Enable notifications" prompt on
+   `/doctor/dashboard` — this requires an explicit tap (browsers/OSes
+   both require a user gesture to grant notification permission, it
+   can't be requested automatically on page load).
+
+No iOS push setup is included yet, since no iOS project exists in this
+repo — it would need the same Firebase Console app registration
+(iOS this time) plus an Apple Push Notification service key uploaded to
+Firebase, done after `npx cap add ios`.
 
 ## Known limitations / not yet built
 

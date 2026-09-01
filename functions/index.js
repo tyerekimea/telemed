@@ -408,6 +408,60 @@ async function createDailyRoomForStartTime(startTime) {
   return room.url;
 }
 
+// Best-effort — a notification failing to send should never fail the
+// booking itself, since the appointment is already committed by the time
+// this runs. Reads tokens from users/{doctorId}.fcmTokens (not the public
+// doctors/{doctorId} doc, which only holds name/specialty/verified) —
+// see lib/notifications.js on the client for how tokens get registered
+// there in the first place.
+async function sendBookingNotification(doctorId, patientName, startTime) {
+  try {
+    const doctorUserSnap = await db.collection("users").doc(doctorId).get();
+    const tokens = doctorUserSnap.exists ? doctorUserSnap.data().fcmTokens : null;
+
+    if (!Array.isArray(tokens) || tokens.length === 0) {
+      return;
+    }
+
+    const when = startTime.toDate().toLocaleString("en-NG", {
+      weekday: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      day: "numeric",
+      month: "short",
+    });
+
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: {
+        title: "New appointment booked",
+        body: `${patientName || "A patient"} booked ${when}`,
+      },
+    });
+
+    // Clean up tokens FCM says are no longer valid (uninstalled app,
+    // revoked browser permission, etc.) so the array doesn't grow stale
+    // forever and future sends don't keep wasting calls on dead tokens.
+    const deadTokens = [];
+    response.responses.forEach((result, i) => {
+      const code = result.error?.code;
+      if (
+        code === "messaging/registration-token-not-registered" ||
+        code === "messaging/invalid-registration-token"
+      ) {
+        deadTokens.push(tokens[i]);
+      }
+    });
+    if (deadTokens.length > 0) {
+      await db.collection("users").doc(doctorId).update({
+        fcmTokens: FieldValue.arrayRemove(...deadTokens),
+      });
+    }
+  } catch (err) {
+    console.error("sendBookingNotification failed:", err);
+  }
+}
+
 exports.bookAppointment = onCall(
   { secrets: [dailyApiKey] },
   async (request) => {
@@ -581,6 +635,8 @@ exports.bookAppointment = onCall(
           FieldValue.serverTimestamp(),
       });
     });
+
+    await sendBookingNotification(doctorId, patientName, startTime);
 
     return {
       appointmentId:
