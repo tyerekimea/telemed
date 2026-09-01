@@ -141,6 +141,12 @@ export default function DoctorDashboard() {
               >
                 Voice call
               </button>
+              <button
+                onClick={() => router.push(`/call?appointmentId=${appt.id}&mode=chat`)}
+                className="btnSecondary"
+              >
+                Chat
+              </button>
             </div>
             {appt.attachments?.length > 0 && (
               <div className="subBlock">

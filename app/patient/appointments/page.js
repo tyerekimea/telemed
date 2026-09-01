@@ -150,6 +150,12 @@ export default function PatientAppointments() {
               >
                 Voice call
               </button>
+              <button
+                onClick={() => router.push(`/call?appointmentId=${appt.id}&mode=chat`)}
+                className="btnSecondary"
+              >
+                Chat
+              </button>
             </div>
 
             {appt.notes && (
