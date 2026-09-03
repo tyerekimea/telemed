@@ -16,9 +16,15 @@ import { enableNotifications } from "../../../lib/notifications";
 // That's what makes "the logged-in doctor" and "this doctors-collection
 // entry" the same thing, so appointments can be filtered to just theirs.
 //
-// "Pending" here means startTime is now or in the future — this page is
-// for appointments still to come. Anything already elapsed moves to
-// /doctor/dashboard/past, where visit notes live instead.
+// "Pending" here means the appointment's consultation window hasn't
+// fully elapsed yet — see CONSULTATION_MINUTES below — this is
+// deliberately NOT just "startTime is in the future": a doctor needs to
+// keep their Video/Voice/Chat buttons available for the full 15-minute
+// window, not just until the scheduled start second, or they'd be locked
+// out of a call they're actively in (or briefly stepped out of) the
+// moment the clock ticks past the start time. Anything past the full
+// window moves to /doctor/dashboard/past, where visit notes live.
+const CONSULTATION_MINUTES = 15; // must match functions/index.js
 
 export default function DoctorDashboard() {
   const { user, role, loading } = useAuth();
@@ -55,7 +61,10 @@ export default function DoctorDashboard() {
         const now = Date.now();
         const loaded = snapshot.docs
           .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((appt) => (appt.startTime?.toMillis() ?? 0) >= now);
+          .filter(
+            (appt) =>
+              (appt.startTime?.toMillis() ?? 0) + CONSULTATION_MINUTES * 60 * 1000 >= now
+          );
         loaded.sort((a, b) => (a.startTime?.toMillis() ?? 0) - (b.startTime?.toMillis() ?? 0));
         setAppointments(loaded);
       } catch (err) {

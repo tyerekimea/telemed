@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "955425320820",
+    "project_id": "telemedmgr",
+    "storage_bucket": "telemedmgr.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:955425320820:android:1ece8b3d227212d7c6c621",
+        "android_client_info": {
+          "package_name": "com.medaxiswellness.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "955425320820-hj9t72it6krjr8cupruorhdi7dqnot50.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-hSQ03xfWkufzszu_iRVLtRyNbWvE6PQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "955425320820-hj9t72it6krjr8cupruorhdi7dqnot50.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

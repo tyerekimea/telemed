@@ -10,12 +10,14 @@ import { useUserProfile } from "../../../../lib/useUserProfile";
 import AppHeader from "../../../../components/AppHeader";
 import ConsultationForms from "../../../../components/ConsultationForms";
 
-// "Past" means startTime has already elapsed — see the note in
-// /doctor/dashboard/page.js. Visit notes, prescriptions, and investigation
-// requests all live here (via ConsultationForms, shared with the live
-// version on the call page — see app/call/page.js) — call buttons and
-// file attachments stay on the Pending page since they're only relevant
-// before/during the appointment.
+// "Past" means the appointment's consultation window has fully elapsed —
+// see the note in /doctor/dashboard/page.js for why this is the window
+// end, not the bare startTime. Visit notes, prescriptions, and
+// investigation requests all live here (via ConsultationForms, shared
+// with the live version on the call page — see app/call/page.js) — call
+// buttons and file attachments stay on the Pending page since they're
+// only relevant before/during the appointment.
+const CONSULTATION_MINUTES = 15; // must match functions/index.js
 
 export default function PastAppointments() {
   const { user, role, loading } = useAuth();
@@ -50,7 +52,10 @@ export default function PastAppointments() {
         const now = Date.now();
         const loaded = snapshot.docs
           .map((d) => ({ id: d.id, ...d.data() }))
-          .filter((appt) => (appt.startTime?.toMillis() ?? 0) < now);
+          .filter(
+            (appt) =>
+              (appt.startTime?.toMillis() ?? 0) + CONSULTATION_MINUTES * 60 * 1000 < now
+          );
         // Most recent past appointment first.
         loaded.sort((a, b) => (b.startTime?.toMillis() ?? 0) - (a.startTime?.toMillis() ?? 0));
         setAppointments(loaded);
