@@ -41,10 +41,10 @@ import ConsultationForms from "../../components/ConsultationForms";
 // go straight to texting without ever creating/joining a Daily room at
 // all. When mode is "chat", the Daily iframe is skipped entirely and no
 // roomUrl is required, so an appointment can be chatted on even before
-// (or instead of) any video/voice call ever happens for it. Chat is
-// deliberately NOT gated by the consultation window below — it's useful
-// for a quick question outside the exact slot, unlike video/voice which
-// represents an actual booked, paid consultation slot.
+// (or instead of) any video/voice call ever happens for it. Chat IS
+// gated by the same consultation window as video/voice (see below) —
+// text access to an appointment follows the same slot boundaries as a
+// call would.
 //
 // Consultation forms: visit notes, prescription, and investigation
 // request (see components/ConsultationForms.js, shared with the same
@@ -61,18 +61,20 @@ import ConsultationForms from "../../components/ConsultationForms";
 // ?mode=voice in the URL. Either party can still toggle their own camera
 // during the call regardless of which button they joined from.
 //
-// Consultation window (video/voice only): joining is only allowed from
-// LEAD_MINUTES before the scheduled start through CONSULTATION_MINUTES
-// after it — matching the slot length set in functions/index.js
-// (duplicated here as a plain constant rather than shared, since
-// Cloud Functions and this Next.js app are separate runtimes with no
-// shared module between them; keep these two in sync by hand if the
-// consultation length ever changes). Before the window opens, no Daily
-// room is joined at all. Once the window closes — even mid-call — the
-// call is force-ended: the effect below that creates the Daily frame
-// depends on windowStatus, so React's cleanup mechanism destroys the
-// frame the instant windowStatus stops being "active", with no separate
-// imperative "kick everyone out" code needed.
+// Consultation window (applies to video, voice, and chat alike): access
+// is only allowed from LEAD_MINUTES before the scheduled start through
+// CONSULTATION_MINUTES after it — matching the slot length set in
+// functions/index.js (duplicated here as a plain constant rather than
+// shared, since Cloud Functions and this Next.js app are separate
+// runtimes with no shared module between them; keep these two in sync by
+// hand if the consultation length ever changes). Before the window
+// opens, no Daily room is joined and the chat panel doesn't render.
+// Once the window closes — even mid-call, even mid-conversation — access
+// is force-ended: the effect below that creates the Daily frame depends
+// on windowStatus, so React's cleanup mechanism destroys the frame the
+// instant windowStatus stops being "active", with no separate imperative
+// "kick everyone out" code needed; the chat panel simply stops being
+// rendered the same way.
 const LEAD_MINUTES = 5;
 const CONSULTATION_MINUTES = 15; // must match functions/index.js
 
@@ -139,12 +141,47 @@ function CallPageInner() {
     setAppointment((prev) => (prev ? { ...prev, [field]: value } : prev));
   }
 
-  // Chat is never gated by the window (see the file-level comment above),
-  // so this only runs for video/voice. Schedules exactly one timeout to
-  // the next real transition (too-early -> active, or active -> ended)
-  // rather than polling, and reschedules itself each time it fires.
+  function renderWindowMessage(status) {
+    if (status === "too-early" && appointment?.startTime) {
+      return (
+        <div className="card">
+          <p className="cardTitle" style={{ marginBottom: 6 }}>
+            Not quite time yet
+          </p>
+          <p style={{ margin: 0, color: "var(--ink-soft)" }}>
+            This consultation is scheduled for{" "}
+            {appointment.startTime.toDate().toLocaleString([], {
+              weekday: "short",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+            . You can join up to {LEAD_MINUTES} minutes early.
+          </p>
+        </div>
+      );
+    }
+    if (status === "ended") {
+      return (
+        <div className="card">
+          <p className="cardTitle" style={{ marginBottom: 6 }}>
+            This consultation window has ended
+          </p>
+          <p style={{ margin: 0, color: "var(--ink-soft)" }}>
+            The {CONSULTATION_MINUTES}-minute window for this appointment is
+            over.
+          </p>
+        </div>
+      );
+    }
+    return null;
+  }
+
+  // Schedules exactly one timeout to the next real transition
+  // (too-early -> active, or active -> ended) rather than polling, and
+  // reschedules itself each time it fires. Applies to every mode,
+  // including chat — see the file-level comment above.
   useEffect(() => {
-    if (mode === "chat" || !appointment?.startTime) return;
+    if (!appointment?.startTime) return;
 
     const startMillis = appointment.startTime.toMillis();
     const windowStart = startMillis - LEAD_MINUTES * 60 * 1000;
@@ -230,57 +267,40 @@ function CallPageInner() {
         <h1 className="pageTitle" style={{ marginBottom: 20 }}>
           {mode === "chat" ? "Chat" : mode === "voice" ? "Voice call" : "Video call"}
         </h1>
-        <div
-          style={{
-            display: "flex",
-            gap: 20,
-            flexWrap: "wrap",
-            alignItems: "flex-start",
-          }}
-        >
-          {mode !== "chat" && windowStatus === "active" && (
-            <div ref={containerRef} style={{ flex: "2 1 480px", minWidth: 280 }} />
-          )}
-          {mode !== "chat" && windowStatus === "too-early" && appointment?.startTime && (
-            <div className="card" style={{ flex: "2 1 480px", minWidth: 280 }}>
-              <p className="cardTitle" style={{ marginBottom: 6 }}>
-                Not quite time yet
-              </p>
-              <p style={{ margin: 0, color: "var(--ink-soft)" }}>
-                This consultation is scheduled for{" "}
-                {appointment.startTime.toDate().toLocaleString([], {
-                  weekday: "short",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-                . You can join up to {LEAD_MINUTES} minutes early.
-              </p>
+        {windowStatus === "active" ? (
+          <div
+            style={{
+              display: "flex",
+              gap: 20,
+              flexWrap: "wrap",
+              alignItems: "flex-start",
+            }}
+          >
+            {mode !== "chat" && (
+              <div ref={containerRef} style={{ flex: "2 1 480px", minWidth: 280 }} />
+            )}
+            <div
+              style={{
+                flex: mode === "chat" ? "1 1 100%" : "1 1 300px",
+                minWidth: 280,
+                maxWidth: mode === "chat" ? 560 : undefined,
+              }}
+            >
+              <ChatPanel
+                appointmentId={appointmentId}
+                currentUserId={user.uid}
+                otherPartyName={
+                  appointment &&
+                  (user.uid === appointment.patientId
+                    ? appointment.doctorName
+                    : appointment.patientName)
+                }
+              />
             </div>
-          )}
-          {mode !== "chat" && windowStatus === "ended" && (
-            <div className="card" style={{ flex: "2 1 480px", minWidth: 280 }}>
-              <p className="cardTitle" style={{ marginBottom: 6 }}>
-                This consultation window has ended
-              </p>
-              <p style={{ margin: 0, color: "var(--ink-soft)" }}>
-                The {CONSULTATION_MINUTES}-minute window for this appointment
-                is over, so the call can't be rejoined.
-              </p>
-            </div>
-          )}
-          <div style={{ flex: mode === "chat" ? "1 1 100%" : "1 1 300px", minWidth: 280, maxWidth: mode === "chat" ? 560 : undefined }}>
-            <ChatPanel
-              appointmentId={appointmentId}
-              currentUserId={user.uid}
-              otherPartyName={
-                appointment &&
-                (user.uid === appointment.patientId
-                  ? appointment.doctorName
-                  : appointment.patientName)
-              }
-            />
           </div>
-        </div>
+        ) : (
+          renderWindowMessage(windowStatus)
+        )}
 
         {appointment && user.uid === appointment.doctorId && (
           <div className="card" style={{ marginTop: 20 }}>
