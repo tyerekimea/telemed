@@ -63,7 +63,13 @@ appointments/{id}
   investigationRequest  — doctor-editable: { clinicalNotes, testsRequested,
                            urgency, doctorName, specialty, licenseNumber, issuedAt }
   attachments            — patient-editable, array of {name, url, uploadedAt}
+  payment                — set once, at booking: { txRef, flwTransactionId,
+                           amount, currency, paidAt }
   createdAt
+
+payments/{txRef}            — server-only; marks a Flutterwave payment as
+                               already used, so one payment can't fund two
+                               bookings. Doc ID is the payment's own tx_ref.
 
 admins/{uid}                — existence-only marker; presence gates /admin
 ```
@@ -109,12 +115,21 @@ doctor's profile changes later. See `lib/printDocument.js`.
 
 ## Booking & video call flow
 
-1. Patient picks an open slot → the Cloud Function creates a fresh Daily
-   room server-side → a Firestore transaction atomically re-checks the
-   slot is still open, marks it booked, and creates the appointment with
-   the new room's URL attached. Room creation happens *before* the
-   transaction, since a transaction shouldn't make an external network
-   call.
+1. Patient picks an open slot → pays the flat consultation fee via
+   Flutterwave's checkout widget (see Payments setup below) → the
+   resulting payment reference is sent to the bookAppointment Cloud
+   Function, which independently re-verifies it directly against
+   Flutterwave's servers (status, amount, currency, reference all
+   checked — never just "did the widget say success") before doing
+   anything else. Only once payment is verified does the function create
+   a fresh Daily room server-side, then a Firestore transaction
+   atomically re-checks the slot is still open, marks it booked, records
+   the payment (so the same reference can't fund a second booking), and
+   creates the appointment with the new room's URL attached. If a real,
+   verified payment somehow can't result in a booking (e.g. someone else
+   took the slot in that same moment), the function automatically
+   refunds it via Flutterwave's API rather than leaving the patient
+   charged with nothing to show for it.
 2. Either party opens `/call?appointmentId=...&mode=video|voice`. The
    page loads the appointment — Firestore rules ensure only the involved
    patient or doctor can read it — then joins the room directly using its
@@ -267,6 +282,44 @@ repo — it would need the same Firebase Console app registration
 (iOS this time) plus an Apple Push Notification service key uploaded to
 Firebase, done after `npx cap add ios`.
 
+## Payments setup
+
+One flat consultation fee (`CONSULTATION_FEE_NGN` in
+`functions/index.js`, `CONSULTATION_FEE_NGN` in `lib/payments.js` — kept
+in sync by hand, same as `CONSULTATION_MINUTES` elsewhere) is charged
+via Flutterwave when a patient books a slot, before the appointment is
+created. Both constants are placeholder values — set them to your
+actual price before going live.
+
+1. **Get your API keys** from your Flutterwave dashboard: Settings > API.
+   You'll need both the public key and the secret key.
+2. **Public key (client-side):** add it to `.env.local` as
+   `NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY`. This is meant to be exposed
+   client-side — it's only enough to open the checkout widget, not to
+   confirm a real charge.
+3. **Secret key (server-side only):** this is the one that actually
+   matters for security — it's what lets `bookAppointment` independently
+   verify a payment really happened, rather than trusting whatever the
+   client claims. Never put this in `.env.local` or anywhere client-side.
+   Set it as a Cloud Functions secret:
+   ```
+   firebase functions:secrets:set FLUTTERWAVE_SECRET_KEY
+   ```
+4. **Deploy** the updated function and rules:
+   ```
+   firebase deploy --only functions,firestore:rules
+   ```
+5. **Test with Flutterwave's test mode** (test API keys, test card
+   numbers from their docs) before ever pointing this at real payment
+   keys — nothing in this integration has been tested against a real
+   transaction yet.
+
+If a payment succeeds but the appointment can't actually be created
+(e.g. someone else took the slot in that same moment), the function
+automatically issues a refund via Flutterwave's API and tells the
+patient plainly that they've been refunded — this is meant to be a rare
+edge case, not something that needs manual handling in normal use.
+
 ## Known limitations / not yet built
 
 - **Prescriptions and investigation requests are free-text**, not
@@ -292,10 +345,10 @@ Firebase, done after `npx cap add ios`.
 - **NDPR compliance** — no privacy policy, DPIA, NDPC registration, or
   cross-border data transfer review yet. Deliberately deferred until
   closer to a real launch with real patient data.
-- **Mobile build untested** — the Capacitor Android/iOS wrapper has
-  never been built and run end-to-end; everything's been verified on
-  web only so far.
-- **Payments** — not built.
+- **Mobile build confirmed working end-to-end** on a real Android
+  device — see the git history around the SWC-binary debugging saga if
+  curious. iOS is still untested (no iOS project exists in this repo
+  yet).
 
 ## Test data
 

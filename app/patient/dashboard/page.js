@@ -15,6 +15,7 @@ import { useIsAdmin } from "../../../lib/useIsAdmin";
 import { useUserProfile } from "../../../lib/useUserProfile";
 import DoctorCard from "../../../components/DoctorCard";
 import AppHeader from "../../../components/AppHeader";
+import { payForConsultation, CONSULTATION_FEE_NGN } from "../../../lib/payments";
 
 const bookAppointment = httpsCallable(functions, "bookAppointment");
 
@@ -103,35 +104,55 @@ export default function PatientDashboard() {
     setBookingSlotId(slot.id);
 
     try {
-    await bookAppointment({
-      doctorId: doctor.id,
-      slotId: slot.id,
-    });
+      // Payment happens first — bookAppointment requires a verified
+      // txRef and will reject the request outright without one. The
+      // widget's own success signal is only ever a "proceed to the next
+      // step" hint; functions/index.js independently re-verifies the
+      // same txRef directly against Flutterwave's servers before ever
+      // creating the appointment. See lib/payments.js.
+      const payment = await payForConsultation({
+        email: profile?.email || user.email || "",
+        name: `${profile?.firstName || ""} ${profile?.lastName || ""}`.trim(),
+        phone: profile?.phone || "",
+      });
 
-    setSlots((prev) => prev.filter((s) => s.id !== slot.id));
+      if (!payment) {
+        setBookingError("Payment was cancelled — you weren't charged.");
+        return;
+      }
 
-    setConfirmation(
-      `Booked with ${doctor.name} for ${slot.startTime
-        .toDate()
-        .toLocaleString()}.`
-    );
-  } catch (err) {
-    console.error(err);
+      await bookAppointment({
+        doctorId: doctor.id,
+        slotId: slot.id,
+        txRef: payment.txRef,
+      });
 
-    if (err.code === "functions/already-exists") {
-      setBookingError(
-        "That time was just booked by someone else — pick another."
-      );
       setSlots((prev) => prev.filter((s) => s.id !== slot.id));
-    } else {
-      setBookingError(
-        err.message || "Couldn't book that slot. Please try again."
+
+      setConfirmation(
+        `Booked with ${doctor.name} for ${slot.startTime
+          .toDate()
+          .toLocaleString()}.`
       );
+    } catch (err) {
+      console.error(err);
+
+      if (err.code === "functions/already-exists") {
+        setBookingError(
+          err.message?.includes("refunded")
+            ? err.message
+            : "That time was just booked by someone else — pick another."
+        );
+        setSlots((prev) => prev.filter((s) => s.id !== slot.id));
+      } else {
+        setBookingError(
+          err.message || "Couldn't book that slot. Please try again."
+        );
+      }
+    } finally {
+      setBookingSlotId(null);
     }
-  } finally {
-    setBookingSlotId(null);
   }
-}
 
   if (
     loading ||
@@ -186,24 +207,30 @@ export default function PatientDashboard() {
                   <p className="emptyState">No open slots right now.</p>
                 )}
                 {!slotsLoading && !slotsError && slots.length > 0 && (
-                  <div className="slotGrid">
-                    {slots.map((slot) => (
-                      <button
-                        key={slot.id}
-                        onClick={() => handleBookSlot(doctor, slot)}
-                        disabled={bookingSlotId === slot.id}
-                        className="slotBtn"
-                      >
-                        {bookingSlotId === slot.id
-                          ? "Booking..."
-                          : slot.startTime.toDate().toLocaleString([], {
-                              weekday: "short",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                      </button>
-                    ))}
-                  </div>
+                  <>
+                    <p style={{ margin: "0 0 10px", fontSize: 14, color: "var(--ink-soft)" }}>
+                      A consultation fee of ₦{CONSULTATION_FEE_NGN.toLocaleString()} applies,
+                      charged when you book.
+                    </p>
+                    <div className="slotGrid">
+                      {slots.map((slot) => (
+                        <button
+                          key={slot.id}
+                          onClick={() => handleBookSlot(doctor, slot)}
+                          disabled={bookingSlotId === slot.id}
+                          className="slotBtn"
+                        >
+                          {bookingSlotId === slot.id
+                            ? "Booking..."
+                            : slot.startTime.toDate().toLocaleString([], {
+                                weekday: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                        </button>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
             )}

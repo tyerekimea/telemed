@@ -19,6 +19,23 @@ const db = getFirestore();
 // firebase functions:secrets:set DAILY_API_KEY
 const dailyApiKey = defineSecret("DAILY_API_KEY");
 
+// Set with:
+// firebase functions:secrets:set FLUTTERWAVE_SECRET_KEY
+// Used only server-side to verify a payment actually happened — never
+// exposed to the client. The client only ever sees the PUBLIC key
+// (NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY), which is meant to be public and
+// is only enough to open the checkout widget, not to confirm a charge.
+const flutterwaveSecretKey = defineSecret("FLUTTERWAVE_SECRET_KEY");
+
+// One flat fee for every doctor for now (per the current pricing model).
+// In kobo-free naira, matching whole-currency-unit amounts Flutterwave
+// expects for NGN. This is a placeholder value — set it to your actual
+// price before going live. Must match NEXT_PUBLIC_FLUTTERWAVE_FEE_NGN in
+// lib/payments.js on the client (duplicated rather than shared, same as
+// CONSULTATION_MINUTES elsewhere in this file — Cloud Functions and the
+// Next.js app are separate runtimes with no shared module between them).
+const CONSULTATION_FEE_NGN = 5000;
+
 const CONSULTATION_MINUTES = 15;
 // Gap enforced between the end of one slot and the start of the next,
 // so a doctor running slightly over on one consultation (or just needing
@@ -46,11 +63,11 @@ function validateBookAppointmentData(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
     throw new HttpsError(
       "invalid-argument",
-      "doctorId and slotId are required."
+      "doctorId, slotId, and txRef are required."
     );
   }
 
-  const allowedKeys = new Set(["doctorId", "slotId"]);
+  const allowedKeys = new Set(["doctorId", "slotId", "txRef"]);
   const unexpectedKeys = Object.keys(data).filter(
     (key) => !allowedKeys.has(key)
   );
@@ -58,12 +75,15 @@ function validateBookAppointmentData(data) {
   if (unexpectedKeys.length > 0) {
     throw new HttpsError(
       "invalid-argument",
-      "Only doctorId and slotId may be provided."
+      "Only doctorId, slotId, and txRef may be provided."
     );
   }
 
   validateDocumentId(data.doctorId, "doctorId");
   validateDocumentId(data.slotId, "slotId");
+  // txRef becomes the document ID of payments/{txRef}, so it needs the
+  // same document-ID safety constraints as doctorId/slotId.
+  validateDocumentId(data.txRef, "txRef");
 }
 
 function validateAvailabilityData(data) {
@@ -462,8 +482,96 @@ async function sendBookingNotification(doctorId, patientName, startTime) {
   }
 }
 
+// Verifies a payment actually happened by asking Flutterwave's own
+// servers directly — the client's claim that payment succeeded is never
+// trusted on its own, since a malicious client could just lie about it.
+// Checks status, amount, AND currency explicitly: checking status alone
+// is a known way these integrations get exploited (e.g. a genuine but
+// underpaid or wrong-currency transaction reported back as "successful"
+// for a different, cheaper item).
+async function verifyFlutterwavePayment(txRef) {
+  let response;
+  try {
+    response = await fetch(
+      `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(txRef)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${flutterwaveSecretKey.value()}`,
+        },
+      }
+    );
+  } catch (err) {
+    console.error("Flutterwave verify request failed:", err);
+    throw new HttpsError(
+      "internal",
+      "Couldn't confirm your payment. Please try again."
+    );
+  }
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error("Flutterwave verify returned an error:", errText);
+    throw new HttpsError(
+      "internal",
+      "Couldn't confirm your payment. Please try again."
+    );
+  }
+
+  const result = await response.json();
+  const txn = result?.data;
+
+  if (
+    result?.status !== "success" ||
+    !txn ||
+    txn.status !== "successful" ||
+    txn.currency !== "NGN" ||
+    typeof txn.amount !== "number" ||
+    txn.amount < CONSULTATION_FEE_NGN ||
+    txn.tx_ref !== txRef
+  ) {
+    console.error("Flutterwave transaction did not verify as paid:", result);
+    throw new HttpsError(
+      "failed-precondition",
+      "Payment could not be verified."
+    );
+  }
+
+  return { flwTransactionId: txn.id, amount: txn.amount, currency: txn.currency };
+}
+
+// Best-effort — used only for the rare case where payment verified
+// successfully but the appointment couldn't actually be created (e.g.
+// someone else took the slot in the moment between payment and
+// booking). Never throws: if the refund call itself fails, that's
+// logged for manual follow-up, but the patient still needs to see the
+// real "please try again" error, not a confusing secondary one about
+// the refund mechanism.
+async function refundFlutterwaveTransaction(flwTransactionId) {
+  try {
+    const response = await fetch(
+      `https://api.flutterwave.com/v3/transactions/${flwTransactionId}/refund`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${flutterwaveSecretKey.value()}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    if (!response.ok) {
+      console.error(
+        "Flutterwave refund failed for transaction",
+        flwTransactionId,
+        await response.text()
+      );
+    }
+  } catch (err) {
+    console.error("Flutterwave refund request failed:", err);
+  }
+}
+
 exports.bookAppointment = onCall(
-  { secrets: [dailyApiKey] },
+  { secrets: [dailyApiKey, flutterwaveSecretKey] },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError(
@@ -474,8 +582,16 @@ exports.bookAppointment = onCall(
 
     validateBookAppointmentData(request.data);
 
-    const { doctorId, slotId } = request.data;
+    const { doctorId, slotId, txRef } = request.data;
     const patientId = request.auth.uid;
+
+    // Verified first, before any Firestore reads — no point looking up a
+    // doctor or slot at all if the payment behind this request isn't
+    // real. See verifyFlutterwavePayment for what "verified" actually
+    // checks (status, amount, currency, tx_ref match — not just "it
+    // didn't error").
+    const { flwTransactionId, amount, currency } =
+      await verifyFlutterwavePayment(txRef);
 
     const patientRef = db
       .collection("users")
@@ -561,6 +677,11 @@ exports.bookAppointment = onCall(
     const appointmentRef =
       db.collection("appointments").doc();
 
+    // Doc ID is the txRef itself — the natural, simplest way to make
+    // "has this payment already been used" a single existence check
+    // rather than a query.
+    const paymentRef = db.collection("payments").doc(txRef);
+
     const patient = patientSnap.data();
 
     const patientName =
@@ -571,70 +692,120 @@ exports.bookAppointment = onCall(
         ? doctor.name
         : "";
 
-    await db.runTransaction(async (transaction) => {
-      const freshSlotSnap =
-        await transaction.get(slotRef);
+    // Tracks WHY the transaction failed, set from inside the callback
+    // before throwing — used below to decide whether an automatic
+    // refund is warranted. Only a genuine slot conflict warrants one; a
+    // reused payment does not (that's the abuse case, not a failure the
+    // patient's money should come back for).
+    let slotConflict = false;
 
-      if (!freshSlotSnap.exists) {
-        throw new HttpsError(
-          "not-found",
-          "Slot not found."
-        );
-      }
+    try {
+      await db.runTransaction(async (transaction) => {
+        const [freshSlotSnap, paymentSnap] = await Promise.all([
+          transaction.get(slotRef),
+          transaction.get(paymentRef),
+        ]);
 
-      const freshSlot =
-        freshSlotSnap.data();
+        if (paymentSnap.exists) {
+          throw new HttpsError(
+            "already-exists",
+            "This payment has already been used to book an appointment."
+          );
+        }
 
-      if (freshSlot.booked === true) {
-        throw new HttpsError(
-          "already-exists",
-          "That slot has already been booked."
-        );
-      }
+        if (!freshSlotSnap.exists) {
+          slotConflict = true;
+          throw new HttpsError(
+            "not-found",
+            "Slot not found."
+          );
+        }
 
-      const freshStartTime =
-        requireFirestoreTimestamp(
-          freshSlot.startTime,
-          "slot.startTime"
-        );
+        const freshSlot =
+          freshSlotSnap.data();
 
-      if (
-        freshStartTime.toMillis() !==
-        startTimeMillis
-      ) {
-        throw new HttpsError(
-          "aborted",
-          "Slot changed while booking. Please try again."
-        );
-      }
+        if (freshSlot.booked === true) {
+          slotConflict = true;
+          throw new HttpsError(
+            "already-exists",
+            "That slot has already been booked."
+          );
+        }
 
-      if (
-        freshStartTime.toMillis() <=
-        Date.now()
-      ) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Cannot book a slot in the past."
-        );
-      }
+        const freshStartTime =
+          requireFirestoreTimestamp(
+            freshSlot.startTime,
+            "slot.startTime"
+          );
 
-      transaction.update(slotRef, {
-        booked: true,
+        if (
+          freshStartTime.toMillis() !==
+          startTimeMillis
+        ) {
+          slotConflict = true;
+          throw new HttpsError(
+            "aborted",
+            "Slot changed while booking. Please try again."
+          );
+        }
+
+        if (
+          freshStartTime.toMillis() <=
+          Date.now()
+        ) {
+          slotConflict = true;
+          throw new HttpsError(
+            "failed-precondition",
+            "Cannot book a slot in the past."
+          );
+        }
+
+        transaction.update(slotRef, {
+          booked: true,
+        });
+
+        transaction.set(paymentRef, {
+          appointmentId: appointmentRef.id,
+          usedAt: FieldValue.serverTimestamp(),
+        });
+
+        transaction.set(appointmentRef, {
+          doctorId,
+          doctorName,
+          patientId,
+          patientName,
+          slotId,
+          startTime: freshStartTime,
+          status: "booked",
+          roomUrl,
+          payment: {
+            txRef,
+            flwTransactionId,
+            amount,
+            currency,
+            paidAt: FieldValue.serverTimestamp(),
+          },
+          createdAt:
+            FieldValue.serverTimestamp(),
+        });
       });
-
-      transaction.set(appointmentRef, {
-        doctorId,
-        doctorName,
-        patientId,
-        patientName,
-        slotId,
-        startTime: freshStartTime,
-        status: "booked",
-        roomUrl,
-        createdAt:
-          FieldValue.serverTimestamp(),
-      });
-    });
+    } catch (err) {
+      if (slotConflict) {
+        // A real payment went through but no appointment could be
+        // created — refund rather than leave the patient charged with
+        // nothing to show for it. Best-effort: if the refund call
+        // itself fails, refundFlutterwaveTransaction already logs it
+        // for manual follow-up; the patient still needs to see this
+        // clear message either way, not a secondary error about the
+        // refund mechanism.
+        await refundFlutterwaveTransaction(flwTransactionId);
+        throw new HttpsError(
+          err.code || "aborted",
+          `${err.message} Your payment has been refunded.`
+        );
+      }
+      throw err;
+    }
 
     await sendBookingNotification(doctorId, patientName, startTime);
 
