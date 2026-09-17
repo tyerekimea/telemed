@@ -106,9 +106,9 @@ export default function PatientDashboard() {
     try {
       // Payment happens first — bookAppointment requires a verified
       // txRef and will reject the request outright without one. The
-      // widget's own success signal is only ever a "proceed to the next
+      // popup's own success signal is only ever a "proceed to the next
       // step" hint; functions/index.js independently re-verifies the
-      // same txRef directly against Flutterwave's servers before ever
+      // same txRef directly against Paystack's servers before ever
       // creating the appointment. See lib/payments.js.
       const payment = await payForConsultation({
         email: profile?.email || user.email || "",

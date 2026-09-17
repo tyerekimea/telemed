@@ -20,17 +20,19 @@ const db = getFirestore();
 const dailyApiKey = defineSecret("DAILY_API_KEY");
 
 // Set with:
-// firebase functions:secrets:set FLUTTERWAVE_SECRET_KEY
+// firebase functions:secrets:set PAYSTACK_SECRET_KEY
 // Used only server-side to verify a payment actually happened — never
 // exposed to the client. The client only ever sees the PUBLIC key
-// (NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY), which is meant to be public and
-// is only enough to open the checkout widget, not to confirm a charge.
-const flutterwaveSecretKey = defineSecret("FLUTTERWAVE_SECRET_KEY");
+// (NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY), which is meant to be public and
+// is only enough to open the checkout popup, not to confirm a charge.
+const paystackSecretKey = defineSecret("PAYSTACK_SECRET_KEY");
 
-// One flat fee for every doctor for now (per the current pricing model).
-// In kobo-free naira, matching whole-currency-unit amounts Flutterwave
-// expects for NGN. This is a placeholder value — set it to your actual
-// price before going live. Must match NEXT_PUBLIC_FLUTTERWAVE_FEE_NGN in
+// One flat fee for every doctor for now (per the current pricing model),
+// in whole naira — converted to kobo (Paystack's smallest-unit
+// convention for NGN) wherever it's actually compared against
+// Paystack's API responses, since Paystack always reports amounts in
+// kobo. This is a placeholder value — set it to your actual price
+// before going live. Must match CONSULTATION_FEE_NGN in
 // lib/payments.js on the client (duplicated rather than shared, same as
 // CONSULTATION_MINUTES elsewhere in this file — Cloud Functions and the
 // Next.js app are separate runtimes with no shared module between them).
@@ -482,26 +484,28 @@ async function sendBookingNotification(doctorId, patientName, startTime) {
   }
 }
 
-// Verifies a payment actually happened by asking Flutterwave's own
-// servers directly — the client's claim that payment succeeded is never
-// trusted on its own, since a malicious client could just lie about it.
-// Checks status, amount, AND currency explicitly: checking status alone
-// is a known way these integrations get exploited (e.g. a genuine but
-// underpaid or wrong-currency transaction reported back as "successful"
-// for a different, cheaper item).
-async function verifyFlutterwavePayment(txRef) {
+// Verifies a payment actually happened by asking Paystack's own servers
+// directly — the client's claim that payment succeeded is never trusted
+// on its own, since a malicious client could just lie about it. Checks
+// status, amount, AND currency explicitly: checking status alone is a
+// known way these integrations get exploited (e.g. a genuine but
+// underpaid or wrong-currency transaction reported back as "success"
+// for a different, cheaper item). Paystack reports amounts in kobo, so
+// the comparison is against CONSULTATION_FEE_NGN * 100, not the raw
+// naira figure.
+async function verifyPaystackPayment(txRef) {
   let response;
   try {
     response = await fetch(
-      `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(txRef)}`,
+      `https://api.paystack.co/transaction/verify/${encodeURIComponent(txRef)}`,
       {
         headers: {
-          Authorization: `Bearer ${flutterwaveSecretKey.value()}`,
+          Authorization: `Bearer ${paystackSecretKey.value()}`,
         },
       }
     );
   } catch (err) {
-    console.error("Flutterwave verify request failed:", err);
+    console.error("Paystack verify request failed:", err);
     throw new HttpsError(
       "internal",
       "Couldn't confirm your payment. Please try again."
@@ -510,7 +514,7 @@ async function verifyFlutterwavePayment(txRef) {
 
   if (!response.ok) {
     const errText = await response.text();
-    console.error("Flutterwave verify returned an error:", errText);
+    console.error("Paystack verify returned an error:", errText);
     throw new HttpsError(
       "internal",
       "Couldn't confirm your payment. Please try again."
@@ -521,22 +525,26 @@ async function verifyFlutterwavePayment(txRef) {
   const txn = result?.data;
 
   if (
-    result?.status !== "success" ||
+    result?.status !== true ||
     !txn ||
-    txn.status !== "successful" ||
+    txn.status !== "success" ||
     txn.currency !== "NGN" ||
     typeof txn.amount !== "number" ||
-    txn.amount < CONSULTATION_FEE_NGN ||
-    txn.tx_ref !== txRef
+    txn.amount < CONSULTATION_FEE_NGN * 100 ||
+    txn.reference !== txRef
   ) {
-    console.error("Flutterwave transaction did not verify as paid:", result);
+    console.error("Paystack transaction did not verify as paid:", result);
     throw new HttpsError(
       "failed-precondition",
       "Payment could not be verified."
     );
   }
 
-  return { flwTransactionId: txn.id, amount: txn.amount, currency: txn.currency };
+  return {
+    paystackTransactionId: txn.id,
+    amount: txn.amount,
+    currency: txn.currency,
+  };
 }
 
 // Best-effort — used only for the rare case where payment verified
@@ -545,33 +553,34 @@ async function verifyFlutterwavePayment(txRef) {
 // booking). Never throws: if the refund call itself fails, that's
 // logged for manual follow-up, but the patient still needs to see the
 // real "please try again" error, not a confusing secondary one about
-// the refund mechanism.
-async function refundFlutterwaveTransaction(flwTransactionId) {
+// the refund mechanism. Paystack's refund endpoint accepts either a
+// transaction reference or numeric ID for the "transaction" field — the
+// reference is used here since it's already on hand, with no need to
+// separately track the numeric ID just for this call.
+async function refundPaystackTransaction(txRef) {
   try {
-    const response = await fetch(
-      `https://api.flutterwave.com/v3/transactions/${flwTransactionId}/refund`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${flutterwaveSecretKey.value()}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    const response = await fetch("https://api.paystack.co/refund", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${paystackSecretKey.value()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ transaction: txRef }),
+    });
     if (!response.ok) {
       console.error(
-        "Flutterwave refund failed for transaction",
-        flwTransactionId,
+        "Paystack refund failed for transaction",
+        txRef,
         await response.text()
       );
     }
   } catch (err) {
-    console.error("Flutterwave refund request failed:", err);
+    console.error("Paystack refund request failed:", err);
   }
 }
 
 exports.bookAppointment = onCall(
-  { secrets: [dailyApiKey, flutterwaveSecretKey] },
+  { secrets: [dailyApiKey, paystackSecretKey] },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError(
@@ -587,11 +596,11 @@ exports.bookAppointment = onCall(
 
     // Verified first, before any Firestore reads — no point looking up a
     // doctor or slot at all if the payment behind this request isn't
-    // real. See verifyFlutterwavePayment for what "verified" actually
-    // checks (status, amount, currency, tx_ref match — not just "it
+    // real. See verifyPaystackPayment for what "verified" actually
+    // checks (status, amount, currency, reference match — not just "it
     // didn't error").
-    const { flwTransactionId, amount, currency } =
-      await verifyFlutterwavePayment(txRef);
+    const { paystackTransactionId, amount, currency } =
+      await verifyPaystackPayment(txRef);
 
     const patientRef = db
       .collection("users")
@@ -780,7 +789,7 @@ exports.bookAppointment = onCall(
           roomUrl,
           payment: {
             txRef,
-            flwTransactionId,
+            paystackTransactionId,
             amount,
             currency,
             paidAt: FieldValue.serverTimestamp(),
@@ -794,11 +803,11 @@ exports.bookAppointment = onCall(
         // A real payment went through but no appointment could be
         // created — refund rather than leave the patient charged with
         // nothing to show for it. Best-effort: if the refund call
-        // itself fails, refundFlutterwaveTransaction already logs it
+        // itself fails, refundPaystackTransaction already logs it
         // for manual follow-up; the patient still needs to see this
         // clear message either way, not a secondary error about the
         // refund mechanism.
-        await refundFlutterwaveTransaction(flwTransactionId);
+        await refundPaystackTransaction(txRef);
         throw new HttpsError(
           err.code || "aborted",
           `${err.message} Your payment has been refunded.`
