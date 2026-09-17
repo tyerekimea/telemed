@@ -1,0 +1,488 @@
+diff --git a/.env.local.example b/.env.local.example
+index 518a36d..d1fc118 100644
+--- a/.env.local.example
++++ b/.env.local.example
+@@ -10,13 +10,13 @@ NEXT_PUBLIC_FIREBASE_APP_ID=
+ # certificates > generate a key pair.
+ NEXT_PUBLIC_FIREBASE_VAPID_KEY=
+ 
+-# Flutterwave's public key — safe to expose client-side, this is only
+-# enough to open the checkout widget, not to confirm a real charge (that
++# Paystack's public key — safe to expose client-side, this is only
++# enough to open the checkout popup, not to confirm a real charge (that
+ # needs the SECRET key, which lives only in Cloud Functions' own secret
+-# manager — see functions:secrets:set FLUTTERWAVE_SECRET_KEY in the
+-# README's Payments setup section). Get this from your Flutterwave
+-# dashboard: Settings > API.
+-NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY=
++# manager — see functions:secrets:set PAYSTACK_SECRET_KEY in the
++# README's Payments setup section). Get this from your Paystack
++# dashboard: Settings > API Keys & Webhooks.
++NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=
+ 
+ # Daily.co room creation typically happens server-side (via a small serverless
+ # function you deploy separately, e.g. on Vercel) since it needs a secret API key.
+diff --git a/README.md b/README.md
+index ee1a7fd..de07a12 100644
+--- a/README.md
++++ b/README.md
+@@ -63,13 +63,13 @@ appointments/{id}
+   investigationRequest  — doctor-editable: { clinicalNotes, testsRequested,
+                            urgency, doctorName, specialty, licenseNumber, issuedAt }
+   attachments            — patient-editable, array of {name, url, uploadedAt}
+-  payment                — set once, at booking: { txRef, flwTransactionId,
++  payment                — set once, at booking: { txRef, paystackTransactionId,
+                            amount, currency, paidAt }
+   createdAt
+ 
+-payments/{txRef}            — server-only; marks a Flutterwave payment as
++payments/{txRef}            — server-only; marks a Paystack payment as
+                                already used, so one payment can't fund two
+-                               bookings. Doc ID is the payment's own tx_ref.
++                               bookings. Doc ID is the payment's own reference.
+ 
+ admins/{uid}                — existence-only marker; presence gates /admin
+ ```
+@@ -116,11 +116,11 @@ doctor's profile changes later. See `lib/printDocument.js`.
+ ## Booking & video call flow
+ 
+ 1. Patient picks an open slot → pays the flat consultation fee via
+-   Flutterwave's checkout widget (see Payments setup below) → the
++   Paystack's checkout popup (see Payments setup below) → the
+    resulting payment reference is sent to the bookAppointment Cloud
+    Function, which independently re-verifies it directly against
+-   Flutterwave's servers (status, amount, currency, reference all
+-   checked — never just "did the widget say success") before doing
++   Paystack's servers (status, amount, currency, reference all
++   checked — never just "did the popup say success") before doing
+    anything else. Only once payment is verified does the function create
+    a fresh Daily room server-side, then a Firestore transaction
+    atomically re-checks the slot is still open, marks it booked, records
+@@ -128,7 +128,7 @@ doctor's profile changes later. See `lib/printDocument.js`.
+    creates the appointment with the new room's URL attached. If a real,
+    verified payment somehow can't result in a booking (e.g. someone else
+    took the slot in that same moment), the function automatically
+-   refunds it via Flutterwave's API rather than leaving the patient
++   refunds it via Paystack's API rather than leaving the patient
+    charged with nothing to show for it.
+ 2. Either party opens `/call?appointmentId=...&mode=video|voice`. The
+    page loads the appointment — Firestore rules ensure only the involved
+@@ -287,15 +287,15 @@ Firebase, done after `npx cap add ios`.
+ One flat consultation fee (`CONSULTATION_FEE_NGN` in
+ `functions/index.js`, `CONSULTATION_FEE_NGN` in `lib/payments.js` — kept
+ in sync by hand, same as `CONSULTATION_MINUTES` elsewhere) is charged
+-via Flutterwave when a patient books a slot, before the appointment is
++via Paystack when a patient books a slot, before the appointment is
+ created. Both constants are placeholder values — set them to your
+ actual price before going live.
+ 
+-1. **Get your API keys** from your Flutterwave dashboard: Settings > API.
+-   You'll need both the public key and the secret key.
++1. **Get your API keys** from your Paystack dashboard: Settings > API
++   Keys & Webhooks. You'll need both the public key and the secret key.
+ 2. **Public key (client-side):** add it to `.env.local` as
+-   `NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY`. This is meant to be exposed
+-   client-side — it's only enough to open the checkout widget, not to
++   `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`. This is meant to be exposed
++   client-side — it's only enough to open the checkout popup, not to
+    confirm a real charge.
+ 3. **Secret key (server-side only):** this is the one that actually
+    matters for security — it's what lets `bookAppointment` independently
+@@ -303,20 +303,20 @@ actual price before going live.
+    client claims. Never put this in `.env.local` or anywhere client-side.
+    Set it as a Cloud Functions secret:
+    ```
+-   firebase functions:secrets:set FLUTTERWAVE_SECRET_KEY
++   firebase functions:secrets:set PAYSTACK_SECRET_KEY
+    ```
+ 4. **Deploy** the updated function and rules:
+    ```
+    firebase deploy --only functions,firestore:rules
+    ```
+-5. **Test with Flutterwave's test mode** (test API keys, test card
++5. **Test with Paystack's test mode** (test API keys, test card
+    numbers from their docs) before ever pointing this at real payment
+    keys — nothing in this integration has been tested against a real
+    transaction yet.
+ 
+ If a payment succeeds but the appointment can't actually be created
+ (e.g. someone else took the slot in that same moment), the function
+-automatically issues a refund via Flutterwave's API and tells the
++automatically issues a refund via Paystack's API and tells the
+ patient plainly that they've been refunded — this is meant to be a rare
+ edge case, not something that needs manual handling in normal use.
+ 
+diff --git a/app/patient/dashboard/page.js b/app/patient/dashboard/page.js
+index 8d2e65c..8fd5d51 100644
+--- a/app/patient/dashboard/page.js
++++ b/app/patient/dashboard/page.js
+@@ -106,9 +106,9 @@ export default function PatientDashboard() {
+     try {
+       // Payment happens first — bookAppointment requires a verified
+       // txRef and will reject the request outright without one. The
+-      // widget's own success signal is only ever a "proceed to the next
++      // popup's own success signal is only ever a "proceed to the next
+       // step" hint; functions/index.js independently re-verifies the
+-      // same txRef directly against Flutterwave's servers before ever
++      // same txRef directly against Paystack's servers before ever
+       // creating the appointment. See lib/payments.js.
+       const payment = await payForConsultation({
+         email: profile?.email || user.email || "",
+diff --git a/functions/index.js b/functions/index.js
+index 034d166..915bd7a 100644
+--- a/functions/index.js
++++ b/functions/index.js
+@@ -20,17 +20,19 @@ const db = getFirestore();
+ const dailyApiKey = defineSecret("DAILY_API_KEY");
+ 
+ // Set with:
+-// firebase functions:secrets:set FLUTTERWAVE_SECRET_KEY
++// firebase functions:secrets:set PAYSTACK_SECRET_KEY
+ // Used only server-side to verify a payment actually happened — never
+ // exposed to the client. The client only ever sees the PUBLIC key
+-// (NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY), which is meant to be public and
+-// is only enough to open the checkout widget, not to confirm a charge.
+-const flutterwaveSecretKey = defineSecret("FLUTTERWAVE_SECRET_KEY");
+-
+-// One flat fee for every doctor for now (per the current pricing model).
+-// In kobo-free naira, matching whole-currency-unit amounts Flutterwave
+-// expects for NGN. This is a placeholder value — set it to your actual
+-// price before going live. Must match NEXT_PUBLIC_FLUTTERWAVE_FEE_NGN in
++// (NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY), which is meant to be public and
++// is only enough to open the checkout popup, not to confirm a charge.
++const paystackSecretKey = defineSecret("PAYSTACK_SECRET_KEY");
++
++// One flat fee for every doctor for now (per the current pricing model),
++// in whole naira — converted to kobo (Paystack's smallest-unit
++// convention for NGN) wherever it's actually compared against
++// Paystack's API responses, since Paystack always reports amounts in
++// kobo. This is a placeholder value — set it to your actual price
++// before going live. Must match CONSULTATION_FEE_NGN in
+ // lib/payments.js on the client (duplicated rather than shared, same as
+ // CONSULTATION_MINUTES elsewhere in this file — Cloud Functions and the
+ // Next.js app are separate runtimes with no shared module between them).
+@@ -482,26 +484,28 @@ async function sendBookingNotification(doctorId, patientName, startTime) {
+   }
+ }
+ 
+-// Verifies a payment actually happened by asking Flutterwave's own
+-// servers directly — the client's claim that payment succeeded is never
+-// trusted on its own, since a malicious client could just lie about it.
+-// Checks status, amount, AND currency explicitly: checking status alone
+-// is a known way these integrations get exploited (e.g. a genuine but
+-// underpaid or wrong-currency transaction reported back as "successful"
+-// for a different, cheaper item).
+-async function verifyFlutterwavePayment(txRef) {
++// Verifies a payment actually happened by asking Paystack's own servers
++// directly — the client's claim that payment succeeded is never trusted
++// on its own, since a malicious client could just lie about it. Checks
++// status, amount, AND currency explicitly: checking status alone is a
++// known way these integrations get exploited (e.g. a genuine but
++// underpaid or wrong-currency transaction reported back as "success"
++// for a different, cheaper item). Paystack reports amounts in kobo, so
++// the comparison is against CONSULTATION_FEE_NGN * 100, not the raw
++// naira figure.
++async function verifyPaystackPayment(txRef) {
+   let response;
+   try {
+     response = await fetch(
+-      `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(txRef)}`,
++      `https://api.paystack.co/transaction/verify/${encodeURIComponent(txRef)}`,
+       {
+         headers: {
+-          Authorization: `Bearer ${flutterwaveSecretKey.value()}`,
++          Authorization: `Bearer ${paystackSecretKey.value()}`,
+         },
+       }
+     );
+   } catch (err) {
+-    console.error("Flutterwave verify request failed:", err);
++    console.error("Paystack verify request failed:", err);
+     throw new HttpsError(
+       "internal",
+       "Couldn't confirm your payment. Please try again."
+@@ -510,7 +514,7 @@ async function verifyFlutterwavePayment(txRef) {
+ 
+   if (!response.ok) {
+     const errText = await response.text();
+-    console.error("Flutterwave verify returned an error:", errText);
++    console.error("Paystack verify returned an error:", errText);
+     throw new HttpsError(
+       "internal",
+       "Couldn't confirm your payment. Please try again."
+@@ -521,22 +525,26 @@ async function verifyFlutterwavePayment(txRef) {
+   const txn = result?.data;
+ 
+   if (
+-    result?.status !== "success" ||
++    result?.status !== true ||
+     !txn ||
+-    txn.status !== "successful" ||
++    txn.status !== "success" ||
+     txn.currency !== "NGN" ||
+     typeof txn.amount !== "number" ||
+-    txn.amount < CONSULTATION_FEE_NGN ||
+-    txn.tx_ref !== txRef
++    txn.amount < CONSULTATION_FEE_NGN * 100 ||
++    txn.reference !== txRef
+   ) {
+-    console.error("Flutterwave transaction did not verify as paid:", result);
++    console.error("Paystack transaction did not verify as paid:", result);
+     throw new HttpsError(
+       "failed-precondition",
+       "Payment could not be verified."
+     );
+   }
+ 
+-  return { flwTransactionId: txn.id, amount: txn.amount, currency: txn.currency };
++  return {
++    paystackTransactionId: txn.id,
++    amount: txn.amount,
++    currency: txn.currency,
++  };
+ }
+ 
+ // Best-effort — used only for the rare case where payment verified
+@@ -545,33 +553,34 @@ async function verifyFlutterwavePayment(txRef) {
+ // booking). Never throws: if the refund call itself fails, that's
+ // logged for manual follow-up, but the patient still needs to see the
+ // real "please try again" error, not a confusing secondary one about
+-// the refund mechanism.
+-async function refundFlutterwaveTransaction(flwTransactionId) {
++// the refund mechanism. Paystack's refund endpoint accepts either a
++// transaction reference or numeric ID for the "transaction" field — the
++// reference is used here since it's already on hand, with no need to
++// separately track the numeric ID just for this call.
++async function refundPaystackTransaction(txRef) {
+   try {
+-    const response = await fetch(
+-      `https://api.flutterwave.com/v3/transactions/${flwTransactionId}/refund`,
+-      {
+-        method: "POST",
+-        headers: {
+-          Authorization: `Bearer ${flutterwaveSecretKey.value()}`,
+-          "Content-Type": "application/json",
+-        },
+-      }
+-    );
++    const response = await fetch("https://api.paystack.co/refund", {
++      method: "POST",
++      headers: {
++        Authorization: `Bearer ${paystackSecretKey.value()}`,
++        "Content-Type": "application/json",
++      },
++      body: JSON.stringify({ transaction: txRef }),
++    });
+     if (!response.ok) {
+       console.error(
+-        "Flutterwave refund failed for transaction",
+-        flwTransactionId,
++        "Paystack refund failed for transaction",
++        txRef,
+         await response.text()
+       );
+     }
+   } catch (err) {
+-    console.error("Flutterwave refund request failed:", err);
++    console.error("Paystack refund request failed:", err);
+   }
+ }
+ 
+ exports.bookAppointment = onCall(
+-  { secrets: [dailyApiKey, flutterwaveSecretKey] },
++  { secrets: [dailyApiKey, paystackSecretKey] },
+   async (request) => {
+     if (!request.auth) {
+       throw new HttpsError(
+@@ -587,11 +596,11 @@ exports.bookAppointment = onCall(
+ 
+     // Verified first, before any Firestore reads — no point looking up a
+     // doctor or slot at all if the payment behind this request isn't
+-    // real. See verifyFlutterwavePayment for what "verified" actually
+-    // checks (status, amount, currency, tx_ref match — not just "it
++    // real. See verifyPaystackPayment for what "verified" actually
++    // checks (status, amount, currency, reference match — not just "it
+     // didn't error").
+-    const { flwTransactionId, amount, currency } =
+-      await verifyFlutterwavePayment(txRef);
++    const { paystackTransactionId, amount, currency } =
++      await verifyPaystackPayment(txRef);
+ 
+     const patientRef = db
+       .collection("users")
+@@ -780,7 +789,7 @@ exports.bookAppointment = onCall(
+           roomUrl,
+           payment: {
+             txRef,
+-            flwTransactionId,
++            paystackTransactionId,
+             amount,
+             currency,
+             paidAt: FieldValue.serverTimestamp(),
+@@ -794,11 +803,11 @@ exports.bookAppointment = onCall(
+         // A real payment went through but no appointment could be
+         // created — refund rather than leave the patient charged with
+         // nothing to show for it. Best-effort: if the refund call
+-        // itself fails, refundFlutterwaveTransaction already logs it
++        // itself fails, refundPaystackTransaction already logs it
+         // for manual follow-up; the patient still needs to see this
+         // clear message either way, not a secondary error about the
+         // refund mechanism.
+-        await refundFlutterwaveTransaction(flwTransactionId);
++        await refundPaystackTransaction(txRef);
+         throw new HttpsError(
+           err.code || "aborted",
+           `${err.message} Your payment has been refunded.`
+diff --git a/lib/payments.js b/lib/payments.js
+index 0e3e6e2..e8ccfeb 100644
+--- a/lib/payments.js
++++ b/lib/payments.js
+@@ -1,29 +1,32 @@
+-// Flutterwave inline checkout, loaded as a plain script tag rather than
+-// a React-specific SDK wrapper — same lightweight-dependency approach as
++// Paystack Inline JS, loaded as a plain script tag rather than a
++// React-specific SDK wrapper — same lightweight-dependency approach as
+ // @daily-co/daily-js elsewhere in this app (dynamically loaded, no extra
+ // npm package pulled in just for this).
+-const FLUTTERWAVE_SCRIPT_URL = "https://checkout.flutterwave.com/v3.js";
++const PAYSTACK_SCRIPT_URL = "https://js.paystack.co/v2/inline.js";
+ let scriptLoadingPromise = null;
+ 
+-// One flat fee for every doctor for now (per the current pricing model).
+-// Must match CONSULTATION_FEE_NGN in functions/index.js — duplicated
+-// rather than shared, since the Cloud Function and this Next.js app are
+-// separate runtimes with no shared module between them (same reasoning
+-// as CONSULTATION_MINUTES elsewhere in this app). This is a placeholder
++// One flat fee for every doctor for now (per the current pricing model),
++// in whole naira for display purposes — converted to kobo (Paystack's
++// smallest-unit convention for NGN, so ₦1 = 100) wherever it's actually
++// sent to or compared against Paystack's API. Must match
++// CONSULTATION_FEE_NGN in functions/index.js — duplicated rather than
++// shared, since the Cloud Function and this Next.js app are separate
++// runtimes with no shared module between them (same reasoning as
++// CONSULTATION_MINUTES elsewhere in this app). This is a placeholder
+ // value — set it to your actual price before going live.
+ export const CONSULTATION_FEE_NGN = 5000;
+ 
+-function loadFlutterwaveScript() {
++function loadPaystackScript() {
+   if (typeof window === "undefined") {
+     return Promise.reject(new Error("Payments can only be initiated in the browser."));
+   }
+-  if (window.FlutterwaveCheckout) {
++  if (window.PaystackPop) {
+     return Promise.resolve();
+   }
+   if (!scriptLoadingPromise) {
+     scriptLoadingPromise = new Promise((resolve, reject) => {
+       const script = document.createElement("script");
+-      script.src = FLUTTERWAVE_SCRIPT_URL;
++      script.src = PAYSTACK_SCRIPT_URL;
+       script.onload = () => resolve();
+       script.onerror = () => {
+         scriptLoadingPromise = null; // allow retrying on a later attempt
+@@ -35,62 +38,66 @@ function loadFlutterwaveScript() {
+   return scriptLoadingPromise;
+ }
+ 
+-// Opens Flutterwave's checkout widget for the flat consultation fee.
+-// Resolves with { txRef } once the widget itself reports success, or
+-// null if the patient closes it without paying. IMPORTANT: this result
+-// is only ever a client-side signal to proceed to the next step — it is
+-// NOT treated as proof of payment anywhere in this app. functions/index.js's
+-// bookAppointment independently re-verifies the same txRef directly
+-// against Flutterwave's servers before ever creating an appointment;
+-// this function's job is only to collect the payment and hand back a
++// Opens Paystack's checkout popup for the flat consultation fee.
++// Resolves with { txRef } once the popup itself reports success, or null
++// if the patient closes it without paying. IMPORTANT: this result is
++// only ever a client-side signal to proceed to the next step — it is NOT
++// treated as proof of payment anywhere in this app. functions/index.js's
++// bookAppointment independently re-verifies the same reference directly
++// against Paystack's servers before ever creating an appointment; this
++// function's job is only to collect the payment and hand back a
+ // reference to check.
+ //
+-// NOTE: verified against Flutterwave's long-standing documented inline
+-// checkout API (FlutterwaveCheckout({...}) with a callback/onclose
+-// pair). Flutterwave does periodically revise its SDK — worth a quick
+-// check against their current docs the first time you actually test a
+-// real payment, in case field names have shifted since this was written.
++// Field kept as "txRef" in this app's own request shape (matching what
++// bookAppointment already expects) even though Paystack itself calls
++// this a "reference" — avoids renaming the Cloud Function's contract for
++// what's purely a provider-terminology difference.
++//
++// NOTE: verified against Paystack's current documented Inline JS v2 API
++// (new PaystackPop().newTransaction({...}) with onSuccess/onCancel
++// callbacks) as of when this was written. Worth a quick check against
++// their current docs the first time you actually test a real payment,
++// in case anything's shifted since.
+ export async function payForConsultation({ email, name, phone }) {
+-  await loadFlutterwaveScript();
++  await loadPaystackScript();
+ 
+-  const publicKey = process.env.NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY;
++  const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
+   if (!publicKey) {
+     throw new Error(
+-      "Payments aren't configured yet — set NEXT_PUBLIC_FLUTTERWAVE_PUBLIC_KEY in .env.local."
++      "Payments aren't configured yet — set NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY in .env.local."
+     );
+   }
+ 
+   const txRef = `medaxis-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+ 
+   return new Promise((resolve) => {
+-    window.FlutterwaveCheckout({
+-      public_key: publicKey,
+-      tx_ref: txRef,
+-      amount: CONSULTATION_FEE_NGN,
++    const popup = new window.PaystackPop();
++    popup.newTransaction({
++      key: publicKey,
++      email,
++      amount: CONSULTATION_FEE_NGN * 100, // Paystack expects kobo, not naira
+       currency: "NGN",
+-      payment_options: "card, banktransfer, ussd",
+-      customer: {
+-        email,
++      reference: txRef,
++      channels: ["card", "bank", "ussd", "bank_transfer"],
++      metadata: {
+         name,
+         phone_number: phone,
++        custom_fields: [
++          {
++            display_name: "Consultation fee",
++            variable_name: "consultation_fee",
++            value: "MedAxis Wellness",
++          },
++        ],
+       },
+-      customizations: {
+-        title: "MedAxis Wellness",
+-        description: "Consultation fee",
++      onSuccess: () => {
++        resolve({ txRef });
+       },
+-      callback: (response) => {
+-        if (response?.status === "successful" || response?.status === "completed") {
+-          resolve({ txRef });
+-        } else {
+-          resolve(null);
+-        }
++      onCancel: () => {
++        resolve(null);
+       },
+-      onclose: () => {
+-        // Fires if the patient closes the widget — including right
+-        // after a successful payment, once Flutterwave's own UI is
+-        // done. The callback above will already have resolved by then
+-        // in the success case, so this only matters for the
+-        // closed-without-paying case.
++      onError: (error) => {
++        console.error("Paystack checkout error:", error);
+         resolve(null);
+       },
+     });
