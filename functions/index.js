@@ -36,7 +36,7 @@ const paystackSecretKey = defineSecret("PAYSTACK_SECRET_KEY");
 // lib/payments.js on the client (duplicated rather than shared, same as
 // CONSULTATION_MINUTES elsewhere in this file — Cloud Functions and the
 // Next.js app are separate runtimes with no shared module between them).
-const CONSULTATION_FEE_NGN = 5000;
+const CONSULTATION_FEE_NGN = 150;
 
 const CONSULTATION_MINUTES = 15;
 // Gap enforced between the end of one slot and the start of the next,
